@@ -6,8 +6,9 @@
 
 #define N 16
 #define BLOCK_SIZE 16
+#define NUM_BLOCKS N/BLOCK_SIZE
 
-#define ARRAY_SIZE BLOCK_SIZE
+#define ARRAY_SIZE N
 #define ARRAY_SIZE_IN_BYTES (sizeof(unsigned int) * (ARRAY_SIZE))
 
 /* Declare  statically four arrays of ARRAY_SIZE each */
@@ -29,11 +30,8 @@ void main_sub()
 	cudaMalloc((void **)&gpu_block, ARRAY_SIZE_IN_BYTES);
 	cudaMemcpy( cpu_block, gpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyHostToDevice );
 
-	dim3 dimBlock( BLOCK_SIZE/2, 1 );
-	dim3 dimGrid( 2, 1 );
-
 	/* Execute our kernel */
-	hello<<<dimGrid, dimBlock>>>(gpu_block);
+	hello<<<NUM_BLOCKS, BLOCK_SIZE>>>(gpu_block);
 
 	/* Free the arrays on the GPU as now we're done with them */
 	cudaMemcpy( cpu_block, gpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost );
