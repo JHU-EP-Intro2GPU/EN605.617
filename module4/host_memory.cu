@@ -33,8 +33,10 @@ int main(void)
   cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
 
   float maxError = 0.0f;
-  for (int i = 0; i < N; i++)
+  for (int i = 0; i < N; i++){
     maxError = max(maxError, abs(y[i]-4.0f));
+    printf("y[%d]=%f\n",i,y[i]);
+  }
   printf("Max error: %f\n", maxError);
 
   cudaFree(d_x);
