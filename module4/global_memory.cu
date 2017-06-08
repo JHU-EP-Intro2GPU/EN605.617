@@ -33,31 +33,6 @@ typedef struct {
 	ARRAY_MEMBER_T d;
 } NON_INTERLEAVED_T;
 
-
-/**
- * This macro checks return value of the CUDA runtime call and exits
- * the application if the call failed.
- */
-#define CUDA_CALL(x) {														
-	cudaError_t _m_cudaStat = x;											
-	if (_m_cudaStat != cudaSuccess) {										
-		fprintf(stderr, "Error %s at line %d in file %sn",					
-				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		
-		exit(1);															
-	} }
-
-/**
- * This macro checks return value of the CUDA runtime call and exits
- * the application if the call failed.
- */
-#define CUDA_CHECK_RETURN(value) {											
-	cudaError_t _m_cudaStat = value;										
-	if (_m_cudaStat != cudaSuccess) {										
-		fprintf(stderr, "Error %s at line %d in file %sn",					
-				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		
-		exit(1);															
-	} }
-
 __host__ cudaEvent_t get_time(void)
 {
 	cudaEvent_t time;
@@ -67,18 +42,18 @@ __host__ cudaEvent_t get_time(void)
 }
 
 __host__ float add_test_non_interleaved_cpu(
-		NON_INTERLEAVED_T const host_dest_ptr,
-		const NON_INTERLEAVED_T const host_src_ptr, const unsigned int iter,
+		NON_INTERLEAVED_T host_dest_ptr,
+		NON_INTERLEAVED_T const host_src_ptr, const unsigned int iter,
 		const unsigned int num_elements) {
 
 	cudaEvent_t start_time = get_time();
 
 	for (unsigned int tid = 0; tid < num_elements; tid++) {
 		for (unsigned int i = 0; i < iter; i++) {
-			host_dest_ptr->a[tid] += host_src_ptr->a[tid];
-			host_dest_ptr->b[tid] += host_src_ptr->b[tid];
-			host_dest_ptr->c[tid] += host_src_ptr->c[tid];
-			host_dest_ptr->d[tid] += host_src_ptr->d[tid];
+			host_dest_ptr.a[tid] += host_src_ptr.a[tid];
+			host_dest_ptr.b[tid] += host_src_ptr.b[tid];
+			host_dest_ptr.c[tid] += host_src_ptr.c[tid];
+			host_dest_ptr.d[tid] += host_src_ptr.d[tid];
 		}
 	}
 
@@ -159,34 +134,34 @@ __host__ float add_test_interleaved(INTERLEAVED_T * const host_dest_ptr,
 	INTERLEAVED_T * device_dest_ptr;
 	INTERLEAVED_T * device_src_ptr;
 
-	CUDA_CALL(cudaMalloc((void **) &device_src_ptr, num_bytes));
-	CUDA_CALL(cudaMalloc((void **) &device_dest_ptr, num_bytes));
+	cudaMalloc((void **) &device_src_ptr, num_bytes);
+	cudaMalloc((void **) &device_dest_ptr, num_bytes);
 
 	cudaEvent_t kernel_start, kernel_stop;
 	cudaEventCreate(&kernel_start,0);
 	cudaEventCreate(&kernel_stop,0);
 
 	cudaStream_t test_stream;
-	CUDA_CALL(cudaStreamCreate(&test_stream));
+	cudaStreamCreate(&test_stream);
 
-	CUDA_CALL(cudaMemcpy(device_src_ptr, host_src_ptr, num_bytes,cudaMemcpyHostToDevice));
+	cudaMemcpy(device_src_ptr, host_src_ptr, num_bytes,cudaMemcpyHostToDevice);
 
-	CUDA_CALL(cudaEventRecord(kernel_start, 0));
+	cudaEventRecord(kernel_start, 0);
 
 	add_kernel_interleaved<<<num_blocks,num_threads>>>(device_dest_ptr, device_src_ptr, iter, num_elements);
 
-	CUDA_CALL(cudaEventRecord(kernel_stop, 0));
+	cudaEventRecord(kernel_stop, 0);
 
-	CUDA_CALL(cudaEventSynchronize(kernel_stop));
+	cudaEventSynchronize(kernel_stop);
 
 	float delta = 0.0F;
-	CUDA_CALL(cudaEventElapsedTime(&delta, kernel_start, kernel_stop));
+	cudaEventElapsedTime(&delta, kernel_start, kernel_stop);
 
-	CUDA_CALL(cudaFree(device_src_ptr));
-	CUDA_CALL(cudaFree(device_dest_ptr));
-	CUDA_CALL(cudaEventDestroy(kernel_start));
-	CUDA_CALL(cudaEventDestroy(kernel_stop));
-	CUDA_CALL(cudaStreamDestroy(test_stream));
+	cudaFree(device_src_ptr);
+	cudaFree(device_dest_ptr);
+	cudaEventDestroy(kernel_start);
+	cudaEventDestroy(kernel_stop);
+	cudaStreamDestroy(test_stream);
 
 	return delta;
 }
@@ -200,7 +175,7 @@ __host__ float select_samples_cpu(unsigned int * const sample_data,
 	cudaEventCreate(&kernel_start,0);
 	cudaEventCreate(&kernel_stop,0);
 
-	CUDA_CALL(cudaEventRecord(kernel_start, 0));
+	cudaEventRecord(kernel_start, 0);
 
 	unsigned int sample_idx = 0;
 
@@ -210,12 +185,12 @@ __host__ float select_samples_cpu(unsigned int * const sample_data,
 		sample_idx++;
 	}
 
-	CUDA_CALL(cudaEventRecord(kernel_stop, 0));
+	cudaEventRecord(kernel_stop, 0);
 
-	CUDA_CALL(cudaEventSynchronize(kernel_stop));
+	cudaEventSynchronize(kernel_stop);
 
 	float delta = 0.0F;
-	CUDA_CALL(cudaEventElapsedTime(&delta, kernel_start, kernel_stop));
+	cudaEventElapsedTime(&delta, kernel_start, kernel_stop);
 	return delta;
 }
 
@@ -243,16 +218,16 @@ __host__ float select_samples_gpu(unsigned int * const sample_data,
 	cudaEventCreate(&kernel_start,0);
 	cudaEventCreate(&kernel_stop,0);
 
-	CUDA_CALL(cudaEventRecord(kernel_start, 0));
+	cudaEventRecord(kernel_start, 0);
 
 	select_samples_gpu_kernel<<<num_blocks, num_threads_per_block>>>(sample_data, sample_interval, src_data);
 
-	CUDA_CALL(cudaEventRecord(kernel_stop, 0));
+	cudaEventRecord(kernel_stop, 0);
 
-	CUDA_CALL(cudaEventSynchronize(kernel_stop));
+	cudaEventSynchronize(kernel_stop);
 
 	float delta = 0.0F;
-	CUDA_CALL(cudaEventElapsedTime(&delta, kernel_start, kernel_stop));
+	cudaEventElapsedTime(&delta, kernel_start, kernel_stop);
 	return delta;
 }
 
@@ -269,16 +244,16 @@ __host__ float sort_samples_cpu(unsigned int * const sample_data,
 	cudaEventCreate(&kernel_start,0);
 	cudaEventCreate(&kernel_stop,0);
 
-	CUDA_CALL(cudaEventRecord(kernel_start, 0));
+	cudaEventRecord(kernel_start, 0);
 
 	qsort(sample_data, num_samples, sizeof(unsigned int), &compare_func);
 
-	CUDA_CALL(cudaEventRecord(kernel_stop, 0));
+	cudaEventRecord(kernel_stop, 0);
 
-	CUDA_CALL(cudaEventSynchronize(kernel_stop));
+	cudaEventSynchronize(kernel_stop);
 
 	float delta = 0.0F;
-	CUDA_CALL(cudaEventElapsedTime(&delta, kernel_start, kernel_stop));
+	cudaEventElapsedTime(&delta, kernel_start, kernel_stop);
 	return delta;
 }
 
@@ -431,25 +406,25 @@ void execute_gpu_functions()
 	for (i = 0; i < WORK_SIZE; i++)
 		idata[i] = (unsigned int) i;
 
-	CUDA_CHECK_RETURN(cudaMalloc((void** ) &d, sizeof(int) * WORK_SIZE));
-	CUDA_CHECK_RETURN(
+	cudaMalloc((void** ) &d, sizeof(int) * WORK_SIZE);
+	
 			cudaMemcpy(d, idata, sizeof(int) * WORK_SIZE,
-					cudaMemcpyHostToDevice));
+					cudaMemcpyHostToDevice);
 
 	bitreverse<<<1, WORK_SIZE, WORK_SIZE * sizeof(int)>>>(d);
 
-	CUDA_CHECK_RETURN(cudaThreadSynchronize());	// Wait for the GPU launched work to complete
-	CUDA_CHECK_RETURN(cudaGetLastError());
-	CUDA_CHECK_RETURN(
+	cudaThreadSynchronize();	// Wait for the GPU launched work to complete
+	cudaGetLastError();
+	
 			cudaMemcpy(odata, d, sizeof(int) * WORK_SIZE,
-					cudaMemcpyDeviceToHost));
+					cudaMemcpyDeviceToHost);
 
 	for (i = 0; i < WORK_SIZE; i++)
-		printf("Input value: %u, device output: %u, host output: %un",
+		printf("Input value: %u, device output: %u, host output: %u\n",
 				idata[i], odata[i], bitreverse(idata[i]));
 
-	CUDA_CHECK_RETURN(cudaFree((void* ) d));
-	CUDA_CHECK_RETURN(cudaDeviceReset());
+	cudaFree((void* ) d);
+	cudaDeviceReset();
 }
 
 /**
