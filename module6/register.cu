@@ -3,98 +3,65 @@
 
 #define KERNEL_LOOP 128
 
-typedef unsigned short int u16;
-typedef unsigned int u32;
-typedef unsigned long long int u128;
-
-__device__ static unsigned int d_tmp = 0;
-
-__device__ u128 packed_array[KERNEL_LOOP];
-
-static u128 host_packed_array[KERNEL_LOOP];
-/**
- * This macro checks return value of the CUDA runtime call and exits
- * the application if the call failed.
- */
-#define CUDA_CHECK_RETURN(value) {											\
-	cudaError_t _m_cudaStat = value;										\
-	if (_m_cudaStat != cudaSuccess) {										\
-		fprintf(stderr, "Error %s at line %d in file %s\n",					\
-				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		\
-		exit(1);															\
-	} }
-
-#define CUDA_CALL(x) {														\
-	cudaError_t _m_cudaStat = x;											\
-	if (_m_cudaStat != cudaSuccess) {										\
-		fprintf(stderr, "Error %s at line %d in file %s\n",					\
-				cudaGetErrorString(_m_cudaStat), __LINE__, __FILE__);		\
-		exit(1);															\
-	} }
-
-
 __host__ void wait_exit(void)
 {
-	char ch;
+        char ch;
 
-	printf("\nPress any key to exit");
-	ch = getchar();
+        printf("\nPress any key to exit");
+        ch = getchar();
 }
 
-__host__ void generate_rand_data(u128 * host_data_ptr)
+__host__ void generate_rand_data(unsigned int * host_data_ptr)
 {
-	for(u128 i=0; i < KERNEL_LOOP; i++)
-	{
-		host_data_ptr[i] = (u128) rand();
-	}
+        for(unsigned int i=0; i < KERNEL_LOOP; i++)
+        {
+                host_data_ptr[i] = (unsigned int) rand();
+        }
 }
 
-__global__ void test_gpu_register(u32 * const data, const u32 num_elements)
+__global__ void test_gpu_register(unsigned int * const data, const unsigned int num_elements)
 {
-	const unsigned int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-	if(tid < num_elements)
-	{
-		unsigned int d_tmp = 0;
-
-		for(int i=0; i < KERNEL_LOOP; i++)
-		{
-			d_tmp |= (packed_array[i] << i);
-		}
-		data[tid] = d_tmp;
-	}
-}
-
-__global__ void test_gpu_gmem(u32 * const data, const u32 num_elements)
-{
-	const unsigned int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-	if(tid < num_elements)
-	{
-		for(int i=0; KERNEL_LOOP;i++)
-		{
-			d_tmp |= (packed_array[i] << i);
-		}
-		
-		data[tid] = d_tmp;
-	}
+        const unsigned int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+        if(tid < num_elements)
+        {
+                unsigned int d_tmp = data[tid];
+                d_tmp = d_tmp * 2;
+                data[tid] = d_tmp;
+        }
 }
 
 __host__ void gpu_kernel(void)
 {
-	const u32 num_elements = (KERNEL_LOOP*1024);
-	const u32 num_threads = 256;
-	const u32 num_blocks = (num_elements + (num_threads-1))/num_threads;
-	const u32 num_bytes = num_elements * sizeof(u32);
+        const unsigned int num_elements = KERNEL_LOOP;
+        const unsigned int num_threads = KERNEL_LOOP;
+        const unsigned int num_blocks = num_elements/num_threads;
+        const unsigned int num_bytes = num_elements * sizeof(unsigned int);
 
-	u32 * data_gpu;
+        unsigned int * data_gpu;
 
-	CUDA_CALL(cudaMalloc(&data_gpu, num_bytes));
+        unsigned int host_packed_array[num_elements];
+        unsigned int host_packed_array_output[num_elements];
 
-	generate_rand_data(host_packed_array);
+        cudaMalloc(&data_gpu, num_bytes);
 
-	CUDA_CALL(cudaMemcpyToSymbol(packed_array, host_packed_array, KERNEL_LOOP * sizeof(u128)));
+        generate_rand_data(host_packed_array);
 
-	test_gpu_register <<<num_blocks, num_threads>>>(data_gpu, num_elements);
-	wait_exit();
+        cudaMemcpy(data_gpu, host_packed_array, num_bytes,cudaMemcpyHostToDevice);
+
+        test_gpu_register <<<num_blocks, num_threads>>>(data_gpu, num_elements);
+
+        cudaThreadSynchronize();        // Wait for the GPU launched work to complete
+        cudaGetLastError();
+
+        cudaMemcpy(host_packed_array_output, data_gpu, num_bytes,cudaMemcpyDeviceToHost);
+
+        for (int i = 0; i < num_elements; i++){
+                printf("Input value: %x, device output: %x\n",host_packed_array[i], host_packed_array_output[i]);
+        }
+
+        cudaFree((void* ) data_gpu);
+        cudaDeviceReset();
+        wait_exit();
 }
 
 void execute_host_functions()
@@ -104,12 +71,15 @@ void execute_host_functions()
 
 void execute_gpu_functions()
 {
-
+	gpu_kernel();
 }
 
 /**
  * Host function that prepares data array and passes it to the CUDA kernel.
  */
 int main(void) {
-	gpu_kernel();
+	execute_host_functions();
+	execute_gpu_functions();
+
+	return EXIT_SUCCESS;
 }
