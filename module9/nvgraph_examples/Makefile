@@ -34,7 +34,7 @@
 ################################################################################
 
 # Location of the CUDA Toolkit
-CUDA_PATH?=/Developer/NVIDIA/CUDA-8.0
+CUDA_PATH?=/usr/local/cuda
 
 ##############################
 # start deprecated interface #
