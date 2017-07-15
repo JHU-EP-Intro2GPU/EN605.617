@@ -1,3 +1,5 @@
+/*https://cdac.in/index.aspx?id=ev_hpc_gpu-comp-nvidia-cuda-streams#hetr-cuda-prog-cuda-streams*/
+
 #include <stdio.h> 
 #include <time.h> 
 #include <cuda.h> 
