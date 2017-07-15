@@ -53,7 +53,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <cutil.h>
+#include <helper_cuda.h>
 #include <multithreading.h>
 
 // includes, project
@@ -106,15 +106,15 @@ __global__ static void kernel(float * g_idata, float * g_odata)
 ////////////////////////////////////////////////////////////////////////////////
 static CUT_THREADPROC gpuThread(int * device)
 {
-    CUDA_SAFE_CALL(cudaSetDevice(*device));
+    cudaSetDevice(*device);
 
     const int mem_size = NUM_BLOCKS * NUM_THREADS * sizeof(float) / s_gpuCount;
 
     float * idata;
-    CUDA_SAFE_CALL(cudaMalloc( (void**) &idata, mem_size));
+    cudaMalloc( (void**) &idata, mem_size);
 
     float * odata;
-    CUDA_SAFE_CALL(cudaMalloc( (void**) &odata, mem_size));
+    cudaMalloc( (void**) &odata, mem_size);
 
     // @@ Copy some values to the buffers.
 
@@ -131,14 +131,12 @@ static CUT_THREADPROC gpuThread(int * device)
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
 int main( int argc, char** argv)
-{
-    CUT_DEVICE_INIT();  
+{  
 
     // Enumerate GPUs.
-    CUDA_SAFE_CALL(cudaGetDeviceCount(&s_gpuCount));
+    cudaGetDeviceCount(&s_gpuCount);
 
     unsigned int timer = 0;
-    CUT_SAFE_CALL(cutCreateTimer(&timer));
 
     // Cap the number of threads.
     if (s_gpuCount > MAX_CPU_THREAD)
@@ -154,43 +152,35 @@ int main( int argc, char** argv)
     {
         printf("Only one GPU found\n");
 
-        CUT_SAFE_CALL(cutStartTimer(timer));
 
         // Run a single thread.
         int thread = 0;
         gpuThread(&thread);
 
-        CUT_SAFE_CALL(cutStopTimer(timer));
     }
-    else
-    {
-        int threadIds[MAX_CPU_THREAD];
-
-        printf("%d GPUs found\n", s_gpuCount);
+//    else
+//    {
+//       int threadIds[MAX_CPU_THREAD];
+//
+//        printf("%d GPUs found\n", s_gpuCount);
     
-        CUT_SAFE_CALL(cutStartTimer(timer));
 
-        CUTThread * threads = (CUTThread *)malloc(sizeof(CUTThread) * s_gpuCount);
+//        CUTThread * threads = (CUTThread *)malloc(sizeof(CUTThread) * s_gpuCount);
 
         // Start one thread for each device.
-        for(int i = 0; i < s_gpuCount; i++)
-        {
-            threadIds[i] = i;
-            threads[i] = cutStartThread((CUT_THREADROUTINE)gpuThread, (void *)&threadIds[i]);
-        }
+//        for(int i = 0; i < s_gpuCount; i++)
+//        {
+//           threadIds[i] = i;
+//            threads[i] = cutStartThread((CUT_THREADROUTINE)gpuThread, (void *)&threadIds[i]);
+//        }
 
         // Wait for all the threads to finish.
-        cutWaitForThreads(threads, s_gpuCount);
+//        cutWaitForThreads(threads, s_gpuCount);
 
-        free(threads);
+//        free(threads);
 
-        CUT_SAFE_CALL(cutStopTimer(timer));
-    }
-
-    printf("Processing time: %f (ms)\n", cutGetTimerValue(timer));
-    CUT_SAFE_CALL(cutDeleteTimer(timer));
+//    }
 
     printf("Test PASSED\n");
 
-    CUT_EXIT(argc, argv);
 }
