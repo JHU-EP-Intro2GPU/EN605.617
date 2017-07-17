@@ -29,13 +29,6 @@ int main ( int argc, char **argv )
   cudaGetDeviceCount( &whichDevice); 
   cudaGetDeviceProperties( &prop, whichDevice); 
 
-  if(!prop.deviceOverlap) 
-  { 
-   printf("Device can'nt handle overlaps \n"); 
-
-   return 0; 
-  } 
-
   cudaEvent_t start, stop; 
   float elapsedTime; 
 
