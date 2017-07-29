@@ -121,7 +121,7 @@ int main(int argc, char** argv)
 	{
 		errNum = clGetDeviceIDs(
             platformIDs[i], 
-            CL_DEVICE_TYPE_CPU, 
+            CL_DEVICE_TYPE_GPU, 
             0,
             NULL,
             &numDevices);
@@ -130,11 +130,11 @@ int main(int argc, char** argv)
 			checkErr(errNum, "clGetDeviceIDs");
         }
 	    else if (numDevices > 0) 
-		{
+	    {
 		   	deviceIDs = (cl_device_id *)alloca(sizeof(cl_device_id) * numDevices);
 			errNum = clGetDeviceIDs(
 				platformIDs[i],
-				CL_DEVICE_TYPE_CPU,
+				CL_DEVICE_TYPE_GPU,
 				numDevices, 
 				&deviceIDs[0], 
 				NULL);
@@ -144,10 +144,10 @@ int main(int argc, char** argv)
 	}
 
 	// Check to see if we found at least one CPU device, otherwise return
-	if (deviceIDs == NULL) {
-		std::cout << "No CPU device found" << std::endl;
-		exit(-1);
-	}
+// 	if (deviceIDs == NULL) {
+// 		std::cout << "No CPU device found" << std::endl;
+// 		exit(-1);
+// 	}
 
     // Next, create an OpenCL context on the selected platform.  
     cl_context_properties contextProperties[] =
