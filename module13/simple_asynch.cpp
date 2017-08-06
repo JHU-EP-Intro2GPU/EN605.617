@@ -48,15 +48,9 @@ int main(int argc, char** argv)
     cl_device_id * deviceIDs;
     cl_context context0;
     cl_program program0;
-    cl_kernel kernel0;
-    cl_command_queue queue0;
-    cl_mem buffer0;
     int * inputOutput0;
     cl_context context1;
     cl_program program1;
-    cl_kernel kernel1;
-    cl_command_queue queue1;
-    cl_mem buffer1;
     int * inputOutput1;
 
     int platform = DEFAULT_PLATFORM; 
@@ -319,7 +313,7 @@ int main(int argc, char** argv)
       &event0);
 	
  	cl_event event1;
- 	errNum = clEnqueueMarker(queue1,event1);
+ 	errNum = clEnqueueMarker(queue1, &event1);
 
     errNum = clEnqueueNDRangeKernel(
       queue1, 
@@ -334,7 +328,7 @@ int main(int argc, char** argv)
  	
  	//Wait for queue 1 to complete before continuing on queue 0
  	errNum = clEnqueueBarrier(queue0);
- 	errNum = clEnqueueWaitForEvent(queue0,event1);
+ 	errNum = clEnqueueWaitForEvent(queue0, &event1);
 
  	// Read back computed data
    	clEnqueueReadBuffer(
