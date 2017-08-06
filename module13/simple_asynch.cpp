@@ -328,7 +328,7 @@ int main(int argc, char** argv)
  	
  	//Wait for queue 1 to complete before continuing on queue 0
  	errNum = clEnqueueBarrier(queue0);
- 	errNum = clEnqueueWaitForEvent(queue0, &event1);
+ 	errNum = clEnqueueWaitForEvents(queue0, 1, &event1);
 
  	// Read back computed data
    	clEnqueueReadBuffer(
