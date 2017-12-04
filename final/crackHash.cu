@@ -7,29 +7,36 @@
 #define WORK_SIZE 128
 #define	HASH_SIZE 128
 
-#define TESTMAX 
-
-__global__ void deviceHash(MD5 md5, String *crackedPass, int maxSize, String charSet, int charSize)
+/*
+* This is the function that will actually perform the hashing on the GPU. It will use the thread id to
+* determine the string to test. For proof-of-concept I have limited the character set to just integers for now.
+* The thread id will correspond to a string built out of an input character set. For example, if the character
+* set was 26 letters of the alphabet and the tid was 20000, then the resultant string would be "acoe"
+*/
+__device__ void deviceHash(MD5 md5, String *crackedPass, String charSet, int charSetSize)
 {
 	const unsigned int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+	unsigned int carry = tid;
+	unsigned int selection;
 	char* tryPass[maxSize];
-	if (tid < TESTMAX){
-		for(int i=(maxSize-1);i>=0;i--){
-			tryPass[i]=charSet[(tid%((int)pow( (double)charSize, (double)i )))];
-		}
-		md5.digestString(tryPass));
+	for(int i=charSetSize;i>1;i--){
+		tryPass[i]=charSet[(carry/(Math.pow(charSetSize,i-1));
+		carry=carry%(Math.pow(charSetSize,i-1)
 	}
+	tryPass[0]=charSet[carry];
+	md5.digestString(tryPass));
 }
 
-float runHash();
+//First cut at the wrapper to run the kernel
+__global__ float runHash();
 {
 	const unsigned int num_threads = 128;
 	const unsigned int num_blocks = WORK_SIZE / num_threads;
 	float delta;
  	String *crackedPass;
 	const MD5 md5;
-	const unsigned int max = 4000;
-	const String charSet = "abcdefghijklmnopqrstuvwxyzABCEDFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()";
+	//const String charSet = "abcdefghijklmnopqrstuvwxyzABCEDFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()";
+	const String charSet = "1234567890";
  
 	cudaEvent_t start_time = get_time();
  	
