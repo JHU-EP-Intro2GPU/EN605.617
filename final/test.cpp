@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 
+//c++ tester that I use to try out stuff I want to add. Not part of submission.
 int main()
 {
 	MD5 md5 ;
