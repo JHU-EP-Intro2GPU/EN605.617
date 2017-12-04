@@ -22,7 +22,7 @@ Overview of MD5 hash w/ graphics - https://en.wikipedia.org/wiki/MD5
 MD5.h header file - http://www.efgh.com/software/md5.txt
 Discussion on hashing algorithms in use today - https://en.wikipedia.org/wiki/Secure_Hash_Algorithms
 
-## Additional Notes
+### Additional Notes
 "Salting" the passwords before they are hashed is much more commonplace and secure nowadays. Here are some useful articles and blogs if you want to learn more about them.
 https://en.wikipedia.org/wiki/Salt_(cryptography)
 https://stackoverflow.com/questions/420843/how-does-password-salt-help-against-a-rainbow-table-attack
