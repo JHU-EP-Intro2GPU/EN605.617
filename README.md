@@ -1,1 +1,3 @@
-This is the very latest version of the README file for the basic Introduction To GPU Programming Course.
+Course Number: EN.605.417.81.SP18
+Course Name: Introduction to GPU Programming
+Student: Andrew DiPrinzio
