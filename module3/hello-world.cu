@@ -34,7 +34,7 @@ void main_sub()
 	hello<<<NUM_BLOCKS, BLOCK_SIZE>>>(gpu_block);
 
 	/* Free the arrays on the GPU as now we're done with them */
-	cudaMemcpy( cpu_block, gpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost );
+	cudaMemcpy( gpu_block, cpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost );
 	cudaFree(gpu_block);
 
 	/* Iterate through the arrays and print */
