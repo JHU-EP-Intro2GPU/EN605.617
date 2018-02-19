@@ -28,7 +28,7 @@ void main_sub()
 	int *gpu_block;
 
 	cudaMalloc((void **)&gpu_block, ARRAY_SIZE_IN_BYTES);
-	cudaMemcpy( cpu_block, gpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyHostToDevice );
+	cudaMemcpy( gpu_block, cpu_block, ARRAY_SIZE_IN_BYTES, cudaMemcpyHostToDevice );
 
 	/* Execute our kernel */
 	hello<<<NUM_BLOCKS, BLOCK_SIZE>>>(gpu_block);
