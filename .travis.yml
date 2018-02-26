@@ -1,0 +1,28 @@
+language: cpp
+
+sudo: enabled
+dist: trusty
+
+env: 
+  - CUDA=8.0.61-1
+
+compiler:
+  - clang
+  - gcc
+
+before_install:
+    - wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_${CUDA}_amd64.deb
+    - sudo dpkg -i cuda-repo-ubuntu1404_${CUDA}_amd64.deb
+    - sudo apt-get update -qq
+    - CUDA_APT=${CUDA:0:3}
+    - CUDA_APT=${CUDA_APT/./-}
+    - sudo apt-get install -y cuda-drivers cuda-core-${CUDA_APT} cuda-cudart-dev-${CUDA_APT} cuda-cufft-dev-${CUDA_APT}
+    - sudo apt-get clean
+    - CUDA_HOME=/usr/local/cuda-${CUDA:0:3}
+    - LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+    - PATH=${CUDA_HOME}/bin:${PATH}
+
+before_script:
+    - cd module3
+
+script: nvcc arith-kern.cu -L /usr/local/cuda/lib -lcudart -o arith-kern
