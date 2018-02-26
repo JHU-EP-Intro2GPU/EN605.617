@@ -1,4 +1,4 @@
-language: cpp
+language: c
 
 sudo: enabled
 dist: trusty
@@ -7,7 +7,6 @@ env:
   - CUDA=8.0.61-1
 
 compiler:
-  - clang
   - gcc
 
 before_install:
