@@ -22,6 +22,6 @@ before_install:
     - PATH=${CUDA_HOME}/bin:${PATH}
 
 before_script:
-    - cd module3
+    - cd module4
 
-script: nvcc arith-kern.cu -L /usr/local/cuda/lib -lcudart -o arith-kern
+script: run.sh
