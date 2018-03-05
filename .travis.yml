@@ -24,4 +24,4 @@ before_install:
 before_script:
     - cd module4
 
-script: run.sh
+script: bash run.sh
