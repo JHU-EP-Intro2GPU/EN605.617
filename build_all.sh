@@ -5,7 +5,7 @@ modules=(
 )
 if [[ -v CI ]]; then
     for module in modules; do
-        pushd module
+        pushd $module
             ./run.sh
         popd
     done
