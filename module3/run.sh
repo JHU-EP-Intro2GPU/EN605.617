@@ -9,7 +9,7 @@ if [[ ! -v CI ]]; then
 
     ./$FILENAME -t 256 -b 16
 
-    echo "\nExample Addition 1: Changing number of threads"
+    echo "Example Addition 1: Changing number of threads"
 
     ./$FILENAME -t 512 -b 16
 
@@ -29,6 +29,6 @@ if [[ ! -v CI ]]; then
     read -rp "Enter total number of threads:"  THREADS
     read -rp "Enter total threads per block (block size):"  BLOCKS
 
-    ./$FILENAME -t THREADS -b BLOCKS
+    ./$FILENAME -t $THREADS -b $BLOCKS
 
 fi 

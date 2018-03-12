@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+set -e 
 
 modules=(
     "module3"
     "module4"
 )
+
 if [[ -v CI ]]; then
     for module in $modules; do
         echo "Building $module"

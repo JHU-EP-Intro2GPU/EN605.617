@@ -1,10 +1,18 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <assert.h>
+#include <time.h>
+#include <math.h>
 
 /*
 Author: Andrew DiPrinzio 
 Course: EN605.417.FA
 */
+
+static const uint32_t DEFAULT_NUM_THREADS = 1024;
+static const uint32_t DEFAULT_BLOCK_SIZE = 16;
 
 // Structure that holds program arguments specifying number of threads/blocks
 // to use.
@@ -60,11 +68,11 @@ int random(int min, int max){
     return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
-void run_vector_add(int * num_threads, int * block_size)
+void run_vector_add(Arguments args)
 { 
-    printf("Running random vector add with %d threads and a block size of %d\n",*num_threads,*num_threads);
-    int array_size = *num_threads;
-    int array_size_in_bytes = (sizeof(int) * (array_size));
+    printf("Running random vector add with %u threads and a block size of %u\n", args.num_threads, args.block_size);
+    int array_size = args.num_threads;
+    const unsigned int array_size_in_bytes = array_size * sizeof(int);
 
     /* Randomly generate input vectors and dynamically allocate their memory */
     int * a; 
@@ -111,9 +119,8 @@ void run_vector_add(int * num_threads, int * block_size)
 int main(int argc, char ** argv)
 {
     Arguments args = parse_arguments(argc, argv);
-    printf("Num Threads: %u, Block Size: %u\n", args.num_threads, args.block_size);
 
-    run_vector_add(args.num_threads, args.block_size);
+    run_vector_add(args);
     
 	return EXIT_SUCCESS;
 }
