@@ -14,6 +14,14 @@ Course: EN605.417.FA
 static const uint32_t DEFAULT_NUM_THREADS = 1024;
 static const uint32_t DEFAULT_BLOCK_SIZE = 16;
 
+static void usage(){    
+    printf("Usage: ./assignment3 [-t <num_threads>] [-b <block_size>] [-h]\n");
+   
+    printf("\t-t: Specify the number of threads. <num_threads> must be greater than 0. Optional (default %u)\n", DEFAULT_NUM_THREADS);
+   
+    printf("\t-b: Specify the size of each block. <block_size> must be greater than 0. Optional (default %u)\n", DEFAULT_BLOCK_SIZE);    
+}
+
 // Structure that holds program arguments specifying number of threads/blocks
 // to use.
 typedef struct {    
@@ -98,7 +106,7 @@ void run_vector_add(Arguments args)
 	cudaMemcpy( a_d, a, array_size_in_bytes, cudaMemcpyHostToDevice );
 	cudaMemcpy( b_d, b, array_size_in_bytes, cudaMemcpyHostToDevice );
 
-	const unsigned int num_blocks = array_size / *block_size;
+	const unsigned int num_blocks = array_size / args.block_size;
 	const unsigned int num_threads_per_blk = array_size/num_blocks;
 
 	/* Execute our kernel */
