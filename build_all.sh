@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 modules=(
+    "module3"
     "module4"
 )
 if [[ -v CI ]]; then

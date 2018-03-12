@@ -6,6 +6,47 @@ Author: Andrew DiPrinzio
 Course: EN605.417.FA
 */
 
+// Structure that holds program arguments specifying number of threads/blocks
+// to use.
+typedef struct {    
+    uint32_t num_threads;
+    uint32_t block_size;
+} Arguments;
+
+// Parse the command line arguments using getopt and return an Argument structure
+// GetOpt requies the POSIX C Library
+static Arguments parse_arguments(const int argc, char ** argv){   
+    // Argument format string for getopt
+    static const char * _ARG_STR = "ht:b:";
+    // Initialize arguments to their default values    
+    Arguments args;    
+    args.num_threads = DEFAULT_NUM_THREADS;    
+    args.block_size = DEFAULT_BLOCK_SIZE;
+    // Parse any command line options
+    int c;
+    int value;
+    while ((c = getopt(argc, argv, _ARG_STR)) != -1) {
+        switch (c) {
+            case 't':
+                value = atoi(optarg);
+                args.num_threads = value;
+                break;
+            case 'b':
+                // Normal argument
+                value = atoi(optarg);
+                args.block_size = value;
+                break;
+            case 'h':
+                // 'help': print usage, then exit
+                // note the fall through
+                usage();
+            default:
+                exit(-1);
+        }
+    }
+    return args;
+}
+
 //Kernel that adds two vectors
 __global__
 void add_ab(int *a, const int *b)
@@ -67,55 +108,12 @@ void run_vector_add(int * num_threads, int * block_size)
 	}
 }
 
-int main()
-{   
-    int num_threads;
-    int block_size;
+int main(int argc, char ** argv)
+{
+    Arguments args = parse_arguments(argc, argv);
+    printf("Num Threads: %u, Block Size: %u\n", args.num_threads, args.block_size);
 
-    printf("\nExample Addition 0\n\n");
-
-    num_threads = 256;
-    block_size = 16;
-
-    run_vector_add(&num_threads, &block_size);
-
-    printf("\nExample Addition 1: Changing number of threads\n\n");
-
-    num_threads = 512;
-    block_size = 16;
-
-    run_vector_add(&num_threads, &block_size);
-
-    printf("\nExample Addition 2: Changing number of threads\n\n");
-
-    num_threads = 1024;
-    block_size = 16;
-
-    run_vector_add(&num_threads, &block_size);
-
-    printf("\nExample Addition 3: Changing number of block size\n\n");
-
-    num_threads = 256;
-    block_size = 32;
-
-    run_vector_add(&num_threads, &block_size);
-
-    printf("\nExample Addition 4: Changing number of block size\n\n");
-
-    num_threads = 256;
-    block_size = 64;
-
-    run_vector_add(&num_threads, &block_size);
+    run_vector_add(args.num_threads, args.block_size);
     
-    printf("\nCustom Addition: Allow for user input\n\n");
-
-    printf("Enter total number of threads: ");
-    scanf("%d", &num_threads);
- 
-    printf("Enter total threads per block (block size): ");
-    scanf("%d", &block_size);
-
-    run_vector_add(&num_threads, &block_size);
-
 	return EXIT_SUCCESS;
 }
