@@ -6,6 +6,7 @@ modules=(
 )
 if [[ -v CI ]]; then
     for module in $modules; do
+        echo "Building $module"
         pushd $module
             ./run.sh
         popd
