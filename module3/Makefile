@@ -1,0 +1,10 @@
+CC=gcc                                                                                                                                                                                                                                   
+CFLAGS=-I.                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                         
+REQ = assignment.h                                                                                                                                                                                                                       
+                                                                                                                                                                                                                                         
+%.o: %.c $(DEPS)                                                                                                                                                                                                                         
+    $(CC) -c -o $@ $< $(CFLAGS)                                                                                                                                                                                                      
+                                                                                                                                                                                                                                         
+assignment: assignment.o                                                                                                                                                                                                                 
+    $(CC) -o assignment.exe assignment.o
