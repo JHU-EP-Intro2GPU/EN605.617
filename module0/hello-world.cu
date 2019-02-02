@@ -6,6 +6,17 @@
  
 #include <stdio.h>
  
+#define cudaCheckErrors(msg) { \
+	cudaError_t __err = cudaGetLastError(); \
+	if (__err != cudaSuccess) { \
+		fprintf(stderr, "Fatal error: %s (%s at %s:%d)\n", \
+			msg, cudaGetErrorString(__err), \
+			__FILE__, __LINE__); \
+		exit(1); \
+	} \
+}
+
+
 const int N = 16; 
 const int blocksize = 16; 
  
@@ -29,13 +40,17 @@ int main()
  
 	cudaMalloc( (void**)&ad, csize ); 
 	cudaMalloc( (void**)&bd, isize ); 
+	cudaCheckErrors("cudaMalloc fail");
 	cudaMemcpy( ad, a, csize, cudaMemcpyHostToDevice ); 
 	cudaMemcpy( bd, b, isize, cudaMemcpyHostToDevice ); 
+	cudaCheckErrors("cudaMemcpy H2D fail");
 	
 	dim3 dimBlock( blocksize, 1 );
 	dim3 dimGrid( 1, 1 );
 	hello<<<dimGrid, dimBlock>>>(ad, bd);
+	cudaCheckErrors("Kernel fail");
 	cudaMemcpy( a, ad, csize, cudaMemcpyDeviceToHost ); 
+	cudaCheckErrors("cudaMemcpy D2H/Kernel fail");
 	cudaFree( ad );
 	cudaFree( bd );
 	
