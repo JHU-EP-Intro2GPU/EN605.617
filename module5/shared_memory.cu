@@ -13,17 +13,15 @@ __host__ void cpu_sort(u32 * const data, const u32 num_elements)
 	static u32 cpu_tmp_0[NUM_ELEMENTS];
 	static u32 cpu_tmp_1[NUM_ELEMENTS];
 
-	u32 bit_mask = 4096l;
-
-	u32 base_cnt_0 = 0;
-	u32 base_cnt_1 = 0;
-
 	for(u32 bit=0;bit<32;bit++)
 	{
+		const u32 bit_mask = (1 << bit);
+		u32 base_cnt_0 = 0;
+		u32 base_cnt_1 = 0;
+
 		for(u32 i=0; i<num_elements; i++)
 		{
 			const u32 d = data[i];
-			bit_mask = (1 << bit_mask);
 			if((d & bit_mask) > 0)
 			{
 				cpu_tmp_1[base_cnt_1] = d;
@@ -35,17 +33,17 @@ __host__ void cpu_sort(u32 * const data, const u32 num_elements)
 				base_cnt_0++;
 			}
 		}
-	}
 
-	for(u32 i=0; i<base_cnt_0; i++)
-	{
-		data[i] = cpu_tmp_0[i];
-	}
-
-	// Copy data back to the source - then the one list
-	for(u32 i = 0; i<base_cnt_1; i++)
-	{
-		data[base_cnt_0+i] = cpu_tmp_1[i];
+		// Copy data back to the source
+		// First the zero list, then the one list
+		for(u32 i=0; i<base_cnt_0; i++)
+		{
+			data[i] = cpu_tmp_0[i];
+		}
+		for(u32 i = 0; i<base_cnt_1; i++)
+		{
+			data[base_cnt_0+i] = cpu_tmp_1[i];
+		}
 	}
 }
 
