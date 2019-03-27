@@ -52,15 +52,17 @@ int main ( int argc, char **argv )
    host_b[index] = rand()%10; 
   } 
 
+  cudaEventRecord(start);
+
   cudaMemcpyAsync(device_a, host_a,sizeOfArray * sizeof ( int ), cudaMemcpyHostToDevice, stream); 
 
   cudaMemcpyAsync(device_b, host_b, sizeOfArray * sizeof ( int ), cudaMemcpyHostToDevice, stream); 
 
   /*Kernel call*/ 
 
-  arrayAddition <<<256, 1, 1>>>(device_a, device_b, device_result); 
+  arrayAddition <<<sizeOfArray, 1, 1, stream>>>(device_a, device_b, device_result);
 
-  cudaMemcpyAsync(device_result, host_result, sizeOfArray * sizeof ( int ), cudaMemcpyHostToDevice, stream); 
+  cudaMemcpyAsync(host_result, device_result, sizeOfArray * sizeof ( int ), cudaMemcpyDeviceToHost, stream);
 
   cudaStreamSynchronize(stream);
   cudaEventRecord(stop, 0);
