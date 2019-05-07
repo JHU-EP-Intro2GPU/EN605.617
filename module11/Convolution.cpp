@@ -33,7 +33,7 @@
 const unsigned int inputSignalWidth  = 8;
 const unsigned int inputSignalHeight = 8;
 
-cl_uint inputSignal[inputSignalWidth][inputSignalHeight] =
+cl_uint inputSignal[inputSignalHeight][inputSignalWidth] =
 {
 	{3, 1, 1, 4, 8, 2, 1, 3},
 	{4, 2, 1, 1, 2, 1, 2, 3},
@@ -48,12 +48,12 @@ cl_uint inputSignal[inputSignalWidth][inputSignalHeight] =
 const unsigned int outputSignalWidth  = 6;
 const unsigned int outputSignalHeight = 6;
 
-cl_uint outputSignal[outputSignalWidth][outputSignalHeight];
+cl_uint outputSignal[outputSignalHeight][outputSignalWidth];
 
 const unsigned int maskWidth  = 3;
 const unsigned int maskHeight = 3;
 
-cl_uint mask[maskWidth][maskHeight] =
+cl_uint mask[maskHeight][maskWidth] =
 {
 	{1, 1, 1}, {1, 0, 1}, {1, 1, 1},
 };
@@ -256,14 +256,14 @@ int main(int argc, char** argv)
 	errNum |= clSetKernelArg(kernel, 4, sizeof(cl_uint), &maskWidth);
 	checkErr(errNum, "clSetKernelArg");
 
-	const size_t globalWorkSize[1] = { outputSignalWidth * outputSignalHeight };
-    const size_t localWorkSize[1]  = { 1 };
+	const size_t globalWorkSize[2] = { outputSignalWidth, outputSignalHeight };
+    const size_t localWorkSize[2]  = { 1, 1 };
 
     // Queue the kernel up for execution across the array
     errNum = clEnqueueNDRangeKernel(
 		queue, 
 		kernel, 
-		1, 
+		2,
 		NULL,
         globalWorkSize, 
 		localWorkSize,
@@ -289,7 +289,7 @@ int main(int argc, char** argv)
 	{
 		for (int x = 0; x < outputSignalWidth; x++)
 		{
-			std::cout << outputSignal[x][y] << " ";
+			std::cout << outputSignal[y][x] << " ";
 		}
 		std::cout << std::endl;
 	}
