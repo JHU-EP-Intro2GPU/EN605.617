@@ -132,17 +132,18 @@ int main(void)
 
 			}
 		}
-
-
-		/* Free the arrays on the GPU as now we're done with them */
-		cudaFree(gpu_block_x);
-		cudaFree(gpu_block_y);
-		cudaFree(gpu_thread);
-		cudaFree(gpu_warp);
-		cudaFree(gpu_calc_thread);
-		cudaFree(gpu_xthread);
-		cudaFree(gpu_ythread);
-		cudaFree(gpu_grid_dimy);
-		cudaFree(gpu_block_dimy);
 	}
+
+	/* Free the arrays on the GPU as now we're done with them */
+	cudaFree(gpu_block_x);
+	cudaFree(gpu_block_y);
+	cudaFree(gpu_thread);
+	cudaFree(gpu_warp);
+	cudaFree(gpu_calc_thread);
+	cudaFree(gpu_xthread);
+	cudaFree(gpu_ythread);
+	cudaFree(gpu_grid_dimx);
+	cudaFree(gpu_block_dimx);
+	cudaFree(gpu_grid_dimy);
+	cudaFree(gpu_block_dimy);
 }
