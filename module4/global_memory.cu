@@ -73,7 +73,7 @@ __host__ float add_test_interleaved_cpu(INTERLEAVED_T * const host_dest_ptr,
 	for (unsigned int tid = 0; tid < num_elements; tid++) {
 		printf("tid: %u ", tid);
 		for (unsigned int i = 0; i < iter; i++) {
-			printf("iteration: %un", iter);
+			printf("iteration: %u\n", iter);
 			host_dest_ptr[tid].a += host_src_ptr[tid].a;
 			host_dest_ptr[tid].b += host_src_ptr[tid].b;
 			host_dest_ptr[tid].c += host_src_ptr[tid].c;
@@ -394,7 +394,7 @@ void execute_host_functions()
 	INTERLEAVED_T host_dest_ptr[NUM_ELEMENTS];
 	INTERLEAVED_T host_src_ptr[NUM_ELEMENTS];
 	float duration = add_test_interleaved_cpu(host_dest_ptr, host_src_ptr, 4,NUM_ELEMENTS);
-	printf("duration: %fmsn",duration);
+	printf("duration: %fms\n", duration);
 
 }
 
