@@ -182,9 +182,6 @@ int main(int argc, char *argv[])
         saveImage(sResultFilename, oHostDst);
         std::cout << "Saved image: " << sResultFilename << std::endl;
 
-        nppiFree(oDeviceSrc.data());
-        nppiFree(oDeviceDst.data());
-
         exit(EXIT_SUCCESS);
     }
     catch (npp::Exception &rException)
