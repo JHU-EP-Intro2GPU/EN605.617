@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define KERNEL_LOOP 128
+#define KERNEL_LOOP 2048
+#define KERNEL_SIZE 128
 
 __host__ void wait_exit(void)
 {
@@ -33,7 +34,7 @@ __global__ void test_gpu_register(unsigned int * const data, const unsigned int 
 __host__ void gpu_kernel(void)
 {
         const unsigned int num_elements = KERNEL_LOOP;
-        const unsigned int num_threads = KERNEL_LOOP;
+        const unsigned int num_threads = KERNEL_SIZE;
         const unsigned int num_blocks = num_elements/num_threads;
         const unsigned int num_bytes = num_elements * sizeof(unsigned int);
 
@@ -61,7 +62,7 @@ __host__ void gpu_kernel(void)
 
         cudaFree((void* ) data_gpu);
         cudaDeviceReset();
-        wait_exit();
+//        wait_exit();
 }
 
 void execute_host_functions()
