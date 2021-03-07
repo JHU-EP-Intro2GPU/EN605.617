@@ -35,7 +35,7 @@ __host__ void gpu_kernel(void)
 {
         const unsigned int num_elements = KERNEL_LOOP;
         const unsigned int num_threads = KERNEL_SIZE;
-        const unsigned int num_blocks = num_elements/num_threads;
+        const unsigned int num_blocks = (num_elements + num_threads - 1)/num_threads;
         const unsigned int num_bytes = num_elements * sizeof(unsigned int);
 
         unsigned int * data_gpu;
