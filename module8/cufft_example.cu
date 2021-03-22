@@ -20,7 +20,7 @@ typedef float2 Complex;
 
 __global__ void ComplexMUL(Complex *a, Complex *b)
 {
-    int i = threadIdx.x;
+    int i = threadIdx.x + blockIdx.x * blockDim.x ;
     a[i].x = a[i].x * b[i].x - a[i].y*b[i].y;
     a[i].y = a[i].x * b[i].y + a[i].y*b[i].x;
 }
@@ -36,7 +36,7 @@ int main()
 
     Complex *fg = new Complex[SIZE];
     for (int i = 0; i < SIZE; i++){
-        fg[i].x = 1; 
+        fg[i].x = 1;
         fg[i].y = 0;
     }
     Complex *fig = new Complex[SIZE];
@@ -44,14 +44,20 @@ int main()
         fig[i].x = 1; // 
         fig[i].y = 0;
     }
-    for (int i = 0; i < 24; i=i+5)
+    for (int i = 0; i < N * N; i = i + N)
     {
-        cout << fg[i].x << " " << fg[i + 1].x << " " << fg[i + 2].x << " " << fg[i + 3].x << " " << fg[i + 4].x << endl;
+        for (int j=0; j < N; j++){
+            cout << fg[i+j].x << " ";
+        }
+        cout << endl;
     }
     cout << "----------------" << endl;
-    for (int i = 0; i < 24; i = i + 5)
+    for (int i = 0; i < N * N; i = i + N)
     {
-        cout << fig[i].x << " " << fig[i + 1].x << " " << fig[i + 2].x << " " << fig[i + 3].x << " " << fig[i + 4].x << endl;
+        for (int j=0; j < N; j++){
+            cout << fig[i+j].x << " ";
+        }
+        cout << endl;
     }
     cout << "----------------" << endl;
 
@@ -77,7 +83,7 @@ int main()
     cufftExecC2C(plan, (cufftComplex *)d_filter_kernel, (cufftComplex *)d_filter_kernel, CUFFT_FORWARD);
 
     printf("Launching Complex multiplication<<< >>>\n");
-    ComplexMUL <<< 32, 256 >> >(d_signal, d_filter_kernel);
+    ComplexMUL <<< N, N >> >(d_signal, d_filter_kernel);
 
     // Transform signal back
     printf("Transforming signal back cufftExecC2C\n");
@@ -86,9 +92,12 @@ int main()
     Complex *result = new Complex[SIZE];
     cudaMemcpy(result, d_signal, sizeof(Complex)*SIZE, cudaMemcpyDeviceToHost);
 
-    for (int i = 0; i < SIZE; i=i+5)
+    for (int i = 0; i < SIZE; i = i + N)
     {
-        cout << result[i].x << " " << result[i + 1].x << " " << result[i + 2].x << " " << result[i + 3].x << " " << result[i + 4].x << endl;
+        for (int j=0; j < N; j++){
+            cout << result[i+j].x << " ";
+        }
+        cout << endl;
     }
 
     delete result, fg, fig;

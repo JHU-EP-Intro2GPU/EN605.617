@@ -6,24 +6,27 @@
 #include <curand_kernel.h>
 
 #define MAX 100
- 
 #define N 25
+#define M 20
 
 /* this GPU kernel function is used to initialize the random states */
 __global__ void init(unsigned int seed, curandState_t* states) {
 
+    const unsigned int thread_idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+
   /* we have to initialize the state */
   curand_init(seed, /* the seed can be the same for each core, here we pass the time in from the CPU */
-              blockIdx.x, /* the sequence number should be different for each core (unless you want all
+              thread_idx, /* the sequence number should be different for each core (unless you want all
                              cores to get the same sequence of numbers for some reason - use thread id! */
               0, /* the offset is how much extra we advance in the sequence for each call, can be 0 */
-              &states[blockIdx.x]);
+              &states[thread_idx]);
 }
  
 /* this GPU kernel takes an array of states, and an array of ints, and puts a random int into each */
 __global__ void randoms(curandState_t* states, unsigned int* numbers) {
   /* curand works like rand - except that it takes a state as a parameter */
-  numbers[blockIdx.x] = curand(&states[blockIdx.x]) % 100;
+  const unsigned int thread_idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+  numbers[thread_idx] = curand(&states[thread_idx]) % MAX;
 }
  
 /* this GPU kernel function calculates a random number and stores it in the parameter */
@@ -96,25 +99,28 @@ int main( ) {
   curandState_t* states;
 
   /* allocate space on the GPU for the random states */
-  cudaMalloc((void**) &states, N * sizeof(curandState_t));
+  cudaMalloc((void**) &states, N * M * sizeof(curandState_t));
 
   /* invoke the GPU to initialize all of the random states */
-  init<<<N, 1>>>(time(0), states);
+  init<<<N, M>>>(time(0), states);
 
   /* allocate an array of unsigned ints on the CPU and GPU */
-  unsigned int cpu_nums[N];
+  unsigned int cpu_nums[N * M];
   unsigned int* gpu_nums;
-  cudaMalloc((void**) &gpu_nums, N * sizeof(unsigned int));
+  cudaMalloc((void**) &gpu_nums, N * M * sizeof(unsigned int));
 
   /* invoke the kernel to get some random numbers */
-  randoms<<<N, 1>>>(states, gpu_nums);
+  randoms<<<N, M>>>(states, gpu_nums);
 
   /* copy the random numbers back */
-  cudaMemcpy(cpu_nums, gpu_nums, N * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(cpu_nums, gpu_nums, N * M * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
   /* print them out */
   for (int i = 0; i < N; i++) {
-    printf("%u\n", cpu_nums[i]);
+      for (int j =0; j < M; j++){
+          printf("%u ", cpu_nums[i * M + j]);
+      }
+      printf("\n");
   }
 
   /* free the memory we allocated for the states and numbers */
