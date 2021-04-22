@@ -190,25 +190,24 @@ int main(int argc, char** argv)
     }
 
     // create a single buffer to cover all the input data
-    cl_mem buffer = clCreateBuffer(
+    cl_mem main_buffer = clCreateBuffer(
         context,
         CL_MEM_READ_WRITE,
         sizeof(int) * NUM_BUFFER_ELEMENTS * numDevices,
         NULL,
         &errNum);
     checkErr(errNum, "clCreateBuffer");
-    buffers.push_back(buffer);
 
     // now for all devices other than the first create a sub-buffer
-    for (unsigned int i = 1; i < numDevices; i++)
+    for (unsigned int i = 0; i < numDevices; i++)
     {
         cl_buffer_region region = 
             {
                 NUM_BUFFER_ELEMENTS * i * sizeof(int), 
                 NUM_BUFFER_ELEMENTS * sizeof(int)
             };
-        buffer = clCreateSubBuffer(
-            buffers[0],
+        cl_mem buffer = clCreateSubBuffer(
+            main_buffer,
             CL_MEM_READ_WRITE,
             CL_BUFFER_CREATE_TYPE_REGION,
             &region,
@@ -251,8 +250,8 @@ int main(int argc, char** argv)
     if (useMap) 
     {
         cl_int * mapPtr = (cl_int*) clEnqueueMapBuffer(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             CL_TRUE,
             CL_MAP_WRITE,
             0,
@@ -269,8 +268,8 @@ int main(int argc, char** argv)
         }
 
         errNum = clEnqueueUnmapMemObject(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             mapPtr,
             0,
             NULL,
@@ -281,8 +280,8 @@ int main(int argc, char** argv)
     {
         // Write input data
         errNum = clEnqueueWriteBuffer(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             CL_TRUE,
             0,
             sizeof(int) * NUM_BUFFER_ELEMENTS * numDevices,
@@ -321,8 +320,8 @@ int main(int argc, char** argv)
     if (useMap)
     {
         cl_int * mapPtr = (cl_int*) clEnqueueMapBuffer(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             CL_TRUE,
             CL_MAP_READ,
             0,
@@ -339,21 +338,21 @@ int main(int argc, char** argv)
         }
 
         errNum = clEnqueueUnmapMemObject(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             mapPtr,
             0,
             NULL,
             NULL);
 
-        clFinish(queues[0]);
+        clFinish(queues[numDevices - 1]);
     }
     else 
     {
         // Read back computed data
         clEnqueueReadBuffer(
-            queues[0],
-            buffers[0],
+            queues[numDevices - 1],
+            main_buffer,
             CL_TRUE,
             0,
             sizeof(int) * NUM_BUFFER_ELEMENTS * numDevices,
