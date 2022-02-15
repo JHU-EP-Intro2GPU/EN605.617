@@ -6,10 +6,19 @@
 #include "assignment.h"
 #include "benchmarking.h"
 
-#define ARRAY_SIZE 32 // CPU array sizes
+template<typename T>
+void print_vector(const std::vector<T> & vec) {
+	std::cout << "[";
+    for (auto i : vec) {
+        std::cout << i << ",";
+    }
+	std::cout << "]\n";
+}
 
-#define N_THREADS 32 // Number of threads we want in parallel
-#define BLOCK_SIZE 32 // Threads per block
+#define ARRAY_SIZE 64 // CPU array sizes
+
+#define N_THREADS 64 // Number of threads we want in parallel
+#define BLOCK_SIZE 64 // Threads per block
 #define N_BLOCKS N_THREADS/BLOCK_SIZE // Calculate how many blocks will execute
 
 #define ARRAY_SIZE_IN_BYTES (sizeof(unsigned int) * (ARRAY_SIZE)) // for mallocs
@@ -59,8 +68,13 @@ void modulo_matrices(unsigned int dest_matrix[],
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-int main()
+int main(int argc, char * argv[])
 {
+	////////////////////////////////////////////////////////////////////////////
+	if (argc == 0) {
+		std::cout << "Usage: ./file {block size} {number of threads per block}" << std::endl;
+		
+	}
 	////////////////////////////////////////////////////////////////////////////
 	// Prepare the cpu data arrays
 
@@ -87,17 +101,10 @@ int main()
 		std::end(cpu_array_random_numbers), gen);
 
 	// Print
-	std::cout << "[";
-    for (auto i : cpu_array_thread_numbers) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
-
-	std::cout << "[";
-    for (auto i : cpu_array_random_numbers) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
+	std::cout << "Thread number vector:\n";
+	print_vector(cpu_array_thread_numbers);
+	std::cout << "Random number vector:\n";
+	print_vector(cpu_array_random_numbers);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Prepare the GPU memory and execute the kernels
@@ -127,11 +134,8 @@ int main()
 	cudaMemcpy(results.data(), gpu_destination_array,
 		ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
 
-	std::cout << "Results Addition: [";
-    for (auto i : results) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
+	std::cout << "Results Addition:\n";
+	print_vector(results);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Execute subtraction
@@ -147,11 +151,8 @@ int main()
 	cudaMemcpy(results.data(), gpu_destination_array,
 		ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
 
-	std::cout << "Results Subtraction: [";
-    for (auto i : results) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
+	std::cout << "Results Subtraction:\n";
+	print_vector(results);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Execute multiplication
@@ -167,11 +168,8 @@ int main()
 	cudaMemcpy(results.data(), gpu_destination_array,
 		ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
 
-	std::cout << "Results multiplication: [";
-    for (auto i : results) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
+	std::cout << "Results multiplication:\n";
+    print_vector(results);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Execute modulo division
@@ -180,18 +178,15 @@ int main()
 	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
 		ARRAY_SIZE_IN_BYTES, cudaMemcpyHostToDevice);
 
-	multiply_matrices<<<N_BLOCKS, N_THREADS>>> (gpu_destination_array,
+	modulo_matrices<<<N_BLOCKS, N_THREADS>>> (gpu_destination_array,
 		gpu_thread_number_array, gpu_thread_random_array);
 
 	// Retrieve the data from the GPU memory
 	cudaMemcpy(results.data(), gpu_destination_array,
 		ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
 
-	std::cout << "Results Modulus: [";
-    for (auto i : results) {
-        std::cout << i << ",";
-    }
-	std::cout << "]\n";
+	std::cout << "Results Modulus:\n";
+    print_vector(results);
 
 	std::cout << "GPU took " << TOC<std::chrono::microseconds>() << " microseconds\n";
 	////////////////////////////////////////////////////////////////////////////

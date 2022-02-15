@@ -2,5 +2,4 @@
 #include <vector>
 
 template<typename T>
-static void print_vector (const std::vector<T> &);
-
+inline void print_vector (const std::vector<T> &);
