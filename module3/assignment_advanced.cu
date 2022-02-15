@@ -16,9 +16,9 @@
 
 int main(int argc, char * argv[])
 {
-	std::cout << "\nRUNNING ASSIGNMENT" << std::endl;
 	////////////////////////////////////////////////////////////////////////////
 	// Process command line args
+    std::cout << "\nRUNNING ASSIGNMENT ADVANCED " << std::endl;
 	unsigned int block_size = 0; // Threads per block
 	unsigned int n_threads = 0; // Total threads we want
 	unsigned int n_blocks = 0; // Number of blocks to hold all the threads
@@ -36,10 +36,8 @@ int main(int argc, char * argv[])
 	std::vector<unsigned int> cpu_array_thread_numbers(n_threads);
 	std::vector<unsigned int> cpu_array_random_numbers(n_threads);
 	
-	std::vector<unsigned int> results_addition(n_threads);
-	std::vector<unsigned int> results_subtraction(n_threads);
-	std::vector<unsigned int> results_multiplication(n_threads);
 	std::vector<unsigned int> results_modulo(n_threads);
+    std::vector<unsigned int> results_modulo_branched(n_threads);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Prepare the cpu data arrays
@@ -88,51 +86,17 @@ int main(int argc, char * argv[])
 	cudaMalloc((void **)&gpu_destination_array,
 		sizeof(unsigned int) * n_threads);
 
-	TIC();
 	////////////////////////////////////////////////////////////////////////////
-	// Execute addition
-	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
-	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
+	// Execute modulo division with data preparation
+    TIC();
 
-	add_matrices<<<n_blocks, block_size >>> (gpu_destination_array,
-		gpu_thread_number_array, gpu_thread_random_array);
+    // Prepare the random data
+    for (auto & elt : cpu_array_random_numbers) {
+        if (elt == 0) {
+            elt = 1; // Replace 0's with 1's because anything mod1 is 0
+        }
+    }
 
-	// Retrieve the data from the GPU memory
-	cudaMemcpy(results_addition.data(), gpu_destination_array,
-		sizeof(unsigned int) * n_threads, cudaMemcpyDeviceToHost);
-
-	////////////////////////////////////////////////////////////////////////////
-	// Execute subtraction
-	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
-	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
-
-	subtract_matrices<<<n_blocks, block_size>>> (gpu_destination_array,
-		gpu_thread_number_array, gpu_thread_random_array);
-
-	// Retrieve the data from the GPU memory
-	cudaMemcpy(results_subtraction.data(), gpu_destination_array,
-		sizeof(unsigned int) * n_threads, cudaMemcpyDeviceToHost);
-
-	////////////////////////////////////////////////////////////////////////////
-	// Execute multiplication
-	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
-	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
-		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
-
-	multiply_matrices<<<n_blocks, block_size>>> (gpu_destination_array,
-		gpu_thread_number_array, gpu_thread_random_array);
-
-	// Retrieve the data from the GPU memory
-	cudaMemcpy(results_multiplication.data(), gpu_destination_array,
-		sizeof(unsigned int) * n_threads, cudaMemcpyDeviceToHost);
-
-	////////////////////////////////////////////////////////////////////////////
-	// Execute modulo division
 	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
 		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
 	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
@@ -146,18 +110,36 @@ int main(int argc, char * argv[])
 		sizeof(unsigned int) * n_threads, cudaMemcpyDeviceToHost);
 
 	std::cout << "GPU took " << TOC<std::chrono::microseconds>() <<
-	" microseconds to do all 4 operations (n_threads: " << n_threads
+	" microseconds to do prepared modulo division (n_threads: " << n_threads
 	<< ", n_blocks: " << n_blocks << ")\n";
+
+    ////////////////////////////////////////////////////////////////////////////
+	/* Execute modulo division without data preparation and branching inside
+    the kernel */
+    TIC();
+	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
+		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
+	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
+		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
+
+	modulo_matrices_branched<<<n_blocks, block_size>>> (gpu_destination_array,
+		gpu_thread_number_array, gpu_thread_random_array);
+
+	// Retrieve the data from the GPU memory
+	cudaMemcpy(results_modulo.data(), gpu_destination_array,
+		sizeof(unsigned int) * n_threads, cudaMemcpyDeviceToHost);
+
+	std::cout << "GPU took " << TOC<std::chrono::microseconds>()
+    << " microseconds to do modulo division with kernel branch (n_threads: "
+    << n_threads
+	<< ", n_blocks: "
+    << n_blocks << ")\n";
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Print the results
-	std::cout << "Results Addition:\n";
-	print_vector(results_addition);
-	std::cout << "Results Subtraction:\n";
-	print_vector(results_subtraction);
-	std::cout << "Results multiplication:\n";
-    print_vector(results_multiplication);
 	std::cout << "Results Modulus:\n";
+    print_vector(results_modulo);
+    std::cout << "Results Modulus with kernel branch:\n";
     print_vector(results_modulo);
 
 	////////////////////////////////////////////////////////////////////////////
@@ -166,5 +148,5 @@ int main(int argc, char * argv[])
 	cudaFree(gpu_thread_random_array);
 	cudaFree(gpu_destination_array);
 
-	return 0;
+    return 0;
 }
