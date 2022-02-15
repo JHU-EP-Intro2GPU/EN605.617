@@ -4,7 +4,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Cuda kernels
 
-// Add two 1-d arrays of unsigned ints together 
+// Add two 1-d arrays of unsigned ints together
 __global__
 static void add_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
@@ -14,7 +14,7 @@ static void add_matrices(unsigned int dest_matrix[],
     dest_matrix[i] = matrix_i[i] + matrix_j[i];
 }
 
-// Subtract two 1-d arrays of unsigned ints together 
+// Subtract two 1-d arrays of unsigned ints together
 __global__
 static void subtract_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
@@ -23,7 +23,7 @@ static void subtract_matrices(unsigned int dest_matrix[],
     dest_matrix[i] = matrix_i[i] - matrix_j[i];
 }
 
-// Multiply two 1-d arrays of unsigned ints together 
+// Multiply two 1-d arrays of unsigned ints together
 __global__
 static void multiply_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
@@ -32,7 +32,7 @@ static void multiply_matrices(unsigned int dest_matrix[],
     dest_matrix[i] = matrix_i[i] * matrix_j[i];
 }
 
-// Modulo divide two 1-d arrays of unsigned ints together 
+// Modulo divide two 1-d arrays of unsigned ints together
 __global__
 static void modulo_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
@@ -41,7 +41,7 @@ static void modulo_matrices(unsigned int dest_matrix[],
     dest_matrix[i] = matrix_i[i] % matrix_j[i];
 }
 
-// Modulo divide two 1-d arrays of unsigned ints together 
+// Modulo divide two 1-d arrays of unsigned ints together
 __global__
 static void modulo_matrices_branched(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])

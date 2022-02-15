@@ -35,7 +35,7 @@ int main(int argc, char * argv[])
 
 	std::vector<unsigned int> cpu_array_thread_numbers(n_threads);
 	std::vector<unsigned int> cpu_array_random_numbers(n_threads);
-	
+
 	std::vector<unsigned int> results_addition(n_threads);
 	std::vector<unsigned int> results_subtraction(n_threads);
 	std::vector<unsigned int> results_multiplication(n_threads);
@@ -48,17 +48,17 @@ int main(int argc, char * argv[])
 	for (unsigned int i = 0; i < n_threads; ++i) {
 		cpu_array_thread_numbers[i] = i;
 	}
-	
+
 	// Fill the second array with random numbers
     // Random device
     std::random_device rnd_device;
-    
+
 	// Specify the engine and distribution
     std::mt19937 mersenne_engine {rnd_device()};
-    
+
 	// Uniform between 0 and 3
 	std::uniform_int_distribution<unsigned int> dist {0, 3};
-    
+
 	// Create the lamba function
     auto gen = [&dist, &mersenne_engine]() {return dist(mersenne_engine);};
 
@@ -148,7 +148,7 @@ int main(int argc, char * argv[])
 	std::cout << "GPU took " << TOC<std::chrono::microseconds>() <<
 	" microseconds to do all 4 operations (n_threads: " << n_threads
 	<< ", n_blocks: " << n_blocks << ")\n";
-	
+
 	////////////////////////////////////////////////////////////////////////////
 	// Print the results
 	std::cout << "Results Addition:\n";
