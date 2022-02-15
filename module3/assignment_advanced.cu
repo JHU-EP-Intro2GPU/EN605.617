@@ -28,8 +28,8 @@ int main(int argc, char * argv[])
 		return 0;
 	}
 	else {
-		block_size = std::stol(std::string(argv[1]));
-		n_threads = std::stol(std::string(argv[2]));
+		n_threads = std::stol(std::string(argv[1]));
+		block_size = std::stol(std::string(argv[2]));
 		n_blocks = n_threads / block_size;
 	}
 
@@ -89,21 +89,25 @@ int main(int argc, char * argv[])
 	////////////////////////////////////////////////////////////////////////////
 	// Execute modulo division with data preparation
     TIC();
-
-    // Prepare the random data
-    for (auto & elt : cpu_array_random_numbers) {
-        if (elt == 0) {
-            elt = 1; // Replace 0's with 1's because anything mod1 is 0
-        }
-    }
-
 	cudaMemcpy(gpu_thread_number_array, cpu_array_thread_numbers.data(),
 		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
 	cudaMemcpy(gpu_thread_random_array, cpu_array_random_numbers.data(),
 		sizeof(unsigned int) * n_threads, cudaMemcpyHostToDevice);
 
-	modulo_matrices<<<n_blocks, block_size>>> (gpu_destination_array,
+	if (std::find(cpu_array_random_numbers.begin(), cpu_array_random_numbers.end(), 0) != cpu_array_random_numbers.end()) {
+		// Prepare the random data
+		for (auto & elt : cpu_array_random_numbers) {
+			if (elt == 0) {
+				elt = 1; // Replace 0's with 1's because anything mod1 is 0
+			}
+		}
+		modulo_matrices<<<n_blocks, block_size>>> (gpu_destination_array,
 		gpu_thread_number_array, gpu_thread_random_array);
+	}
+	else {
+		modulo_matrices<<<n_blocks, block_size>>> (gpu_destination_array,
+		gpu_thread_number_array, gpu_thread_random_array);
+	}
 
 	// Retrieve the data from the GPU memory
 	cudaMemcpy(results_modulo.data(), gpu_destination_array,

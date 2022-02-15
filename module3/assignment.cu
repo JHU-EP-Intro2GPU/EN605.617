@@ -28,8 +28,8 @@ int main(int argc, char * argv[])
 		return 0;
 	}
 	else {
-		block_size = std::stol(std::string(argv[1]));
-		n_threads = std::stol(std::string(argv[2]));
+		n_threads = std::stol(std::string(argv[1]));
+		block_size = std::stol(std::string(argv[2]));
 		n_blocks = n_threads / block_size;
 	}
 
