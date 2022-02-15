@@ -6,7 +6,7 @@
 
 // Add two 1-d arrays of unsigned ints together
 __global__
-static void add_matrices(unsigned int dest_matrix[],
+void add_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -16,7 +16,7 @@ static void add_matrices(unsigned int dest_matrix[],
 
 // Subtract two 1-d arrays of unsigned ints together
 __global__
-static void subtract_matrices(unsigned int dest_matrix[],
+void subtract_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -25,7 +25,7 @@ static void subtract_matrices(unsigned int dest_matrix[],
 
 // Multiply two 1-d arrays of unsigned ints together
 __global__
-static void multiply_matrices(unsigned int dest_matrix[],
+void multiply_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -34,7 +34,7 @@ static void multiply_matrices(unsigned int dest_matrix[],
 
 // Modulo divide two 1-d arrays of unsigned ints together
 __global__
-static void modulo_matrices(unsigned int dest_matrix[],
+void modulo_matrices(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -43,7 +43,7 @@ static void modulo_matrices(unsigned int dest_matrix[],
 
 // Modulo divide two 1-d arrays of unsigned ints together
 __global__
-static void modulo_matrices_branched(unsigned int dest_matrix[],
+void modulo_matrices_branched(unsigned int dest_matrix[],
 	const unsigned int matrix_i[], const unsigned int matrix_j[])
 {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -53,7 +53,7 @@ static void modulo_matrices_branched(unsigned int dest_matrix[],
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename T>
-static inline void print_vector(const std::vector<T> & vec) {
+inline void print_vector(const std::vector<T> & vec) {
 	std::cout << "[";
     for (auto i : vec) {
         std::cout << i << ",";
