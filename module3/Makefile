@@ -1,6 +1,6 @@
 all:
-	nvcc assignment.cu -o assignment.exe
-	nvcc assignment_advanced.cu -o assignment_advanced.exe
+	nvcc assignment.cu -o assignment.exe -std=c++11
+	nvcc assignment_advanced.cu -o assignment_advanced.exe -std=c++11
 
 clean:
 	rm assignment.exe
