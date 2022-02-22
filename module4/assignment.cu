@@ -104,7 +104,7 @@ void run_pinnable(uint8_t * results, uint8_t * host, uint8_t * rv, size_t alloca
     // Copy results to host memory
     cudaMemcpy(results, device_results,
         allocated_size, cudaMemcpyDeviceToHost);
-    
+
     // print_vector(std::vector<uint8_t>(results, results+allocated_size));
 
     // Free the device memory
@@ -121,7 +121,7 @@ void caesar_cipher(uint8_t * results, uint8_t * host, size_t allocated_size, siz
     cudaMalloc((void **)&device_mem, allocated_size);
     uint8_t * device_results;
     cudaMalloc((void **)&device_results, allocated_size);
-    
+
     // Copy host memory to GPU memory
     cudaMemcpy(device_mem, host,
         allocated_size, cudaMemcpyHostToDevice);
@@ -132,7 +132,7 @@ void caesar_cipher(uint8_t * results, uint8_t * host, size_t allocated_size, siz
     // Copy results to host memory
     cudaMemcpy(results, device_results,
         allocated_size, cudaMemcpyDeviceToHost);
-    
+
     // print_vector(std::vector<uint8_t>(results, results+allocated_size));
 
     // Free the device memory
