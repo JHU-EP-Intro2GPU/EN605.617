@@ -6,3 +6,4 @@ clean:
 
 test:
 	./assignment.exe 3 256
+	./assignment.exe 1 1024
