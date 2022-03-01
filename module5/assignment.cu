@@ -17,8 +17,8 @@ using u32 = unsigned int;
 // Constant memory
 // __constant__ static const u32 fofo = 0xF0F0;
 // __constant__ static const u32 ofof = 0x0F0F;
-__constant__ static u32 c_array1[MAX_N_INTS];
-__constant__ static u32 c_array2[MAX_N_INTS];
+__constant__ u32 c_array1[MAX_N_INTS];
+__constant__ u32 c_array2[MAX_N_INTS];
 
 template<typename T>
 __global__
@@ -27,6 +27,31 @@ void add_matrices_constant(T dest_matrix[])
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     dest_matrix[i] = c_array1[i] + c_array2[i];
 }
+
+template<typename T>
+__global__
+void subtract_matrices_constant(T dest_matrix[])
+{
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    dest_matrix[i] = c_array1[i] - c_array2[i];
+}
+
+template<typename T>
+__global__
+void multiply_matrices_constant(T dest_matrix[])
+{
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    dest_matrix[i] = c_array1[i] * c_array2[i];
+}
+
+template<typename T>
+__global__
+void modulo_matrices_constant(T dest_matrix[])
+{
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    dest_matrix[i] = c_array1[i] % c_array2[i];
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Functions using shared memory
@@ -89,36 +114,26 @@ void modulo_matrices_shared(T dest_matrix[],
     dest_matrix[i] = s_array1[i] % s_array2[i];
 }
 
-template<typename T>
-__device__
-void copy_to_shared(u32 * shared_arr, u32 * input_arr, const size_t n) {
-    for (u32 i = 0; i < n; ++i) {
-        shared_arr[i] = input_arr[i];
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 void run_4_kernels_constant(u32 * results, const u32 n_blocks, const u32 block_size) {
     add_matrices_constant<<<n_blocks, block_size>>>(results);
-    // subtract_matrices<<<n_blocks, block_size>>>(results, data1, data2);
-    // multiply_matrices<<<n_blocks, block_size>>>(results, data1, data2);
-    // modulo_matrices<<<n_blocks, block_size>>>(results, data1, data2);
+    subtract_matrices_constant<<<n_blocks, block_size>>>(results);
+    multiply_matrices_constant<<<n_blocks, block_size>>>(results);
+    modulo_matrices_constant<<<n_blocks, block_size>>>(results);
 }
 
 void run_4_kernels_shared(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, const u32 block_size) {
     add_matrices<<<n_blocks, block_size>>>(results, data1, data2);
-    // subtract_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
-    // multiply_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
-    // modulo_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
+    subtract_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
+    multiply_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
+    modulo_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
 }
 
 void run_constant(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, const u32 block_size, const size_t array_size) {
     // Allocate results buffer
     u32 * device_results;
-    cudaMalloc((void **)&device_results, array_size * sizeof(u32));
-
-    std::cout << data1[0] << std::endl;
+    cudaMallocHost((void **)&device_results, array_size * sizeof(u32));
 
     // Copy to constant arrays
     cudaMemcpyToSymbol(c_array1, data1,
@@ -126,7 +141,7 @@ void run_constant(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, 
     cudaMemcpyToSymbol(c_array2, data2,
         array_size * sizeof(u32));
 
-    run_4_kernels_constant(results, n_blocks, block_size);
+    run_4_kernels_constant(device_results, n_blocks, block_size);
 
     cudaMemcpy(results, device_results,
         array_size * sizeof(u32), cudaMemcpyDeviceToHost);
@@ -142,12 +157,6 @@ void run_shared(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, co
     cudaMallocHost((void **)&arr1, array_size * sizeof(u32));
     u32 * arr2;
     cudaMallocHost((void **)&arr2, array_size * sizeof(u32));
-
-    std::cout << data1[0] << std::endl;
-    std::cout << data2[0] << std::endl;
-    std::cout << array_size << std::endl;
-    std::cout << n_blocks << std::endl;
-    std::cout << block_size << std::endl;
     
     // Copy data1 memory to GPU memory
     cudaMemcpy(arr1, data1,
@@ -155,7 +164,7 @@ void run_shared(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, co
     cudaMemcpy(arr2, data2,
         array_size * sizeof(u32), cudaMemcpyHostToDevice);
 
-    run_4_kernels_shared(results, arr1, arr2, n_blocks, block_size);
+    run_4_kernels_shared(device_results, arr1, arr2, n_blocks, block_size);
 
     cudaFree(arr1);
     cudaFree(arr2);
@@ -185,11 +194,11 @@ int main(int argc, char * argv[]) {
     // Allocate two host destination vectors
     std::vector<u32> dest(MAX_N_INTS);
 
-    // // Run constant memory 4 kernels
-    // TIC();
-    // run_constant(dest.data(), ones.data(), twos.data(), n_blocks, block_size, MAX_N_INTS);
-    // std::cout << "Constant mem took " << TOC<std::chrono::microseconds>() << " microseconds" << std::endl;
-    // print_vector(dest);
+    // Run constant memory 4 kernels
+    TIC();
+    run_constant(dest.data(), ones.data(), twos.data(), n_blocks, block_size, MAX_N_INTS);
+    std::cout << "Constant mem took " << TOC<std::chrono::microseconds>() << " microseconds" << std::endl;
+    print_vector(dest);
 
     // Run shared memory 4 kernels
     TIC();
