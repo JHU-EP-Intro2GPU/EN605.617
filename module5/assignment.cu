@@ -126,7 +126,7 @@ const u32 block_size) {
 
 void run_4_kernels_shared(u32 * results, u32 *  data1, u32 * data2,
 const u32 n_blocks, const u32 block_size) {
-    add_matrices<<<n_blocks, block_size>>>(results, data1, data2);
+    add_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
     subtract_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
     multiply_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
     modulo_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
