@@ -116,21 +116,24 @@ void modulo_matrices_shared(T dest_matrix[],
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void run_4_kernels_constant(u32 * results, const u32 n_blocks, const u32 block_size) {
+void run_4_kernels_constant(u32 * results, const u32 n_blocks,
+const u32 block_size) {
     add_matrices_constant<<<n_blocks, block_size>>>(results);
     subtract_matrices_constant<<<n_blocks, block_size>>>(results);
     multiply_matrices_constant<<<n_blocks, block_size>>>(results);
     modulo_matrices_constant<<<n_blocks, block_size>>>(results);
 }
 
-void run_4_kernels_shared(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, const u32 block_size) {
+void run_4_kernels_shared(u32 * results, u32 *  data1, u32 * data2,
+const u32 n_blocks, const u32 block_size) {
     add_matrices<<<n_blocks, block_size>>>(results, data1, data2);
     subtract_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
     multiply_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
     modulo_matrices_shared<<<n_blocks, block_size>>>(results, data1, data2);
 }
 
-void run_constant(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, const u32 block_size, const size_t array_size) {
+void run_constant(u32 * results, u32 *  data1, u32 * data2,
+const u32 n_blocks, const u32 block_size, const size_t array_size) {
     // Allocate results buffer
     u32 * device_results;
     cudaMallocHost((void **)&device_results, array_size * sizeof(u32));
@@ -149,7 +152,8 @@ void run_constant(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, 
     cudaFree(device_results);
 }
 
-void run_shared(u32 * results, u32 *  data1, u32 * data2, const u32 n_blocks, const u32 block_size, const size_t array_size) {
+void run_shared(u32 * results, u32 *  data1, u32 * data2,
+const u32 n_blocks, const u32 block_size, const size_t array_size) {
     // Allocate results buffer
     u32 * device_results;
     cudaMallocHost((void **)&device_results, array_size * sizeof(u32));
