@@ -170,6 +170,9 @@ const u32 n_blocks, const u32 block_size, const size_t array_size) {
 
     run_4_kernels_shared(device_results, arr1, arr2, n_blocks, block_size);
 
+    cudaMemcpy(results, device_results,
+        array_size * sizeof(u32), cudaMemcpyDeviceToHost);
+
     cudaFree(arr1);
     cudaFree(arr2);
     cudaFree(device_results);
