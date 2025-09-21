@@ -14,6 +14,9 @@
 #endif
 #if _WIN32
 	#include <windows.h>
+#else
+	#include <unistd.h>
+	#include <stdlib.h>
 #endif
 
 const char *KernelSource = "\n" \
@@ -116,11 +119,14 @@ int main(int argc, char** argv)
 	clReleaseContext(context);
 
 	// Leopard pty bug workaround.
-#if _WIN32
-	Sleep(1);
-#else
-	sleep(1);
-#endif
-
+	#if _WIN32
+		Sleep(1);
+	#endif
+	#ifdef _APPLE
+		sleep(1)
+	#endif
+	#ifdef __linux__
+		usleep(1);
+	#endif
 	return 0;
 }
