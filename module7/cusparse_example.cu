@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 
         r0 = r1;
         cublasStatus = cublasSdot(cublasHandle, N, d_r, 1, d_r, 1, &r1);
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         printf("iteration = %3d, residual = %e\n", k, sqrt(r1));
         k++;
     }

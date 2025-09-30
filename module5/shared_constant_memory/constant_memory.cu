@@ -190,7 +190,7 @@ void execute_gpu_functions()
 	cudaMemcpy(data, idata, sizeof(unsigned int) * WORK_SIZE, cudaMemcpyHostToDevice);
 
 	const_test_gpu_literal<<<num_blocks,num_threads>>>(data, WORK_SIZE);
-	cudaThreadSynchronize();	// Wait for the GPU launched work to complete
+	cudaDeviceSynchronize();	// Wait for the GPU launched work to complete
 	cudaGetLastError();
 	
 	cudaMemcpy(odata, data, sizeof(int) * WORK_SIZE, cudaMemcpyDeviceToHost);

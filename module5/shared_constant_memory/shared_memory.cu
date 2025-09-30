@@ -515,7 +515,7 @@ void execute_gpu_functions()
 	//Call GPU kernels
 	gpu_sort_array_array<<<1, NUM_ELEMENTS>>>(d,MAX_NUM_LISTS,NUM_ELEMENTS);
 
-	cudaThreadSynchronize();	// Wait for the GPU launched work to complete
+	cudaDeviceSynchronize();	// Wait for the GPU launched work to complete
 	cudaGetLastError();
 	
 	cudaMemcpy(odata, d, sizeof(int) * NUM_ELEMENTS, cudaMemcpyDeviceToHost);

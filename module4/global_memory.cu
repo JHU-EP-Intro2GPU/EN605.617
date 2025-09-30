@@ -413,7 +413,7 @@ void execute_gpu_functions()
 
 	bitreverse<<<1, WORK_SIZE, WORK_SIZE * sizeof(int)>>>(d);
 
-	cudaThreadSynchronize();	// Wait for the GPU launched work to complete
+	cudaDeviceSynchronize();	// Wait for the GPU launched work to complete
 	cudaGetLastError();
 	
 			cudaMemcpy(odata, d, sizeof(int) * WORK_SIZE,
