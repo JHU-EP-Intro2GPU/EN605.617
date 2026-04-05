@@ -1,0 +1,10 @@
+[project]
+name = "assignment"
+version = "0.1.0"
+description = "Postprocessing for Martingale Posterior"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "scipy",
+]
