@@ -51,7 +51,7 @@ __host__ void gpu_kernel(void)
 
         test_gpu_register <<<num_blocks, num_threads>>>(data_gpu, num_elements);
 
-        cudaThreadSynchronize();        // Wait for the GPU launched work to complete
+        cudaDeviceSynchronize();        // Wait for the GPU launched work to complete
         cudaGetLastError();
 
         cudaMemcpy(host_packed_array_output, data_gpu, num_bytes,cudaMemcpyDeviceToHost);

@@ -12,6 +12,12 @@
 #else
 	#include <CL/cl.h>
 #endif
+#if _WIN32
+	#include <windows.h>
+#else
+	#include <unistd.h>
+	#include <stdlib.h>
+#endif
 
 const char *KernelSource = "\n" \
 "__kernel void hello(              \n" \
@@ -111,6 +117,16 @@ int main(int argc, char** argv)
 	clReleaseKernel(kernel);
 	clReleaseCommandQueue(commands);
 	clReleaseContext(context);
-	sleep(1); // Leopard pty bug workaround.
+
+	// Leopard pty bug workaround.
+	#if _WIN32
+		Sleep(1);
+	#endif
+	#ifdef _APPLE
+		sleep(1)
+	#endif
+	#ifdef __linux__
+		usleep(1);
+	#endif
 	return 0;
 }
