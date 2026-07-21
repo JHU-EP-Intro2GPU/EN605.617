@@ -1,0 +1,28 @@
+# Simple CuTeDSL example
+
+# Set a variable and say it
+set name = "CuTeDSL"
+say "Hello, ${name}!"
+
+# Numeric example
+set x = 7
+add x 3
+say "x after add is ${x}"
+
+# Mixed text
+say "Done."
+
+# More features: mul, sub, if, while
+set a = 5
+mul a 2
+say "a after mul is ${a}"
+
+set n = 0
+while n < 3
+	say "loop iteration ${n}"
+	add n 1
+end
+
+if a >= 10
+	say "a is big: ${a}"
+end
