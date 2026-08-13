@@ -1,0 +1,72 @@
+# assignment_config.yaml
+#
+# Configuration consumed by run_assignments.sh. Place this file at the
+# root of a git project (alongside .git). It tells the script where to
+# find build.sh / run.sh and what arguments to pass them.
+#
+# folder:
+#   Path (relative to this file / the project root) to the directory
+#   that contains build.sh and/or run.sh.
+#
+# build / run:
+#   Each is OPTIONAL and independent — omit either one if that stage
+#   doesn't apply. Each may be written as ANY of:
+#
+#     1) a single dictionary of flag: value pairs -> ONE execution
+#          build:
+#            target: release
+#            O: 2
+#        -> a 1-character key becomes "-k value", a longer key becomes
+#           "--key value": ./build.sh --target release -O 2
+#
+#     2) a single flat list of positional values -> ONE execution
+#          run:
+#            - input.txt
+#            - 42
+#        -> passed straight through, in order: ./run.sh input.txt 42
+#
+#     3) a list where every item is itself a dict or a list
+#        -> MULTIPLE independent executions, one per item, run one
+#           after another. If one configuration's script exits
+#           non-zero, the rest still run — each is independent and the
+#           failure is reported per-configuration, not fatal to the
+#           others.
+#
+#   Forms (2) and (3) both use YAML lists, so the rule that tells them
+#   apart is: a list of bare values (strings/numbers) is form (2), a
+#   list of dicts/lists is form (3). Don't mix bare values with
+#   dicts/lists in the same list.
+#
+# This example shows form (3) — multiple configurations — for both
+# "build" and "run".
+
+folder: src
+
+build:
+  # config 1 (dict form) -> ./build.sh --target debug --verbose true
+  - target: debug
+    verbose: true
+  # config 2 (dict form) -> ./build.sh --target release -O 2
+  - target: release
+    O: 2
+  # config 3 (list form, wrapped so it's unambiguous as its own config)
+  # -> ./build.sh --lint-only
+  - [--lint-only]
+
+run:
+  # config 1 (list form) -> ./run.sh input.txt
+  - [input.txt]
+  # config 2 (dict form) -> ./run.sh --mode quick
+  - mode: quick
+  # config 3 (dict form) -> ./run.sh --mode thorough --retries 3
+  - mode: thorough
+    retries: 3
+
+# --- Single-configuration equivalent (form 1 / form 2), for reference ---
+# build:
+#   target: release
+#   O: 2
+# run:
+#   - input.txt
+#   - "42"
+#   - --dry-run

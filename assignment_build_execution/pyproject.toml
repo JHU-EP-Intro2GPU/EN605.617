@@ -1,0 +1,13 @@
+[project]
+name = "assignment-runner"
+version = "1.0.0"
+description = "Runs per-project build.sh/run.sh scripts as configured by assignment_config.yaml"
+requires-python = ">=3.9"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+# This is a small utility script (yaml_helper.py), not an installable
+# library/package, so we don't need a build backend or [build-system].
+[tool.uv]
+package = false
