@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./assignment.exe "$@"
