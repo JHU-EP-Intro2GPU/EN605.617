@@ -1,0 +1,2 @@
+I used AI (Opencode to be specific) to generate the table in run_comparison.md. 
+Everything else was written myself.
