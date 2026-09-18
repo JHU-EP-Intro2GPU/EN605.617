@@ -1,0 +1,9 @@
+Good:
+- Clearly distinguishes between host and GPU memory and properly allocates and moves memory between the two.
+- Frees the GPU's memory immediately after processing.
+- Put the logic for the CPU's processing in a separate function.
+
+Bad:
+I think the main issue with this code is how it times the kernel execution, 
+which is asynchronous from the CPU's perspective. The code should either 
+block using `cudaDeviceSynchronize()` or use CUDA events to time kernel execution.
