@@ -3,110 +3,171 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define NUM_ELEMENTS 1000000
+#include <chrono>
+
+#define NUM_ELEMENTS 10000000
 
 __global__ void addArrays(const int *a, const int *b, int *c, int n)
 {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = blockDim.x * gridDim.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
 
-	while (i < n)
-	{
-		c[i] = a[i] + b[i];
-		i += stride;
-	}
+    while (i < n)
+    {
+        c[i] = a[i] + b[i];
+        i += stride;
+    }
+}
+
+__global__ void addArraysWithBranching(const int *a, const int *b, int *c, int n)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    while (i < n)
+    {
+        if (i < (n / 2))
+        {
+            c[i] = a[i] + b[i];
+        }
+        else
+        {
+            c[i] = a[i] - b[i];
+        }
+        i += stride;
+    }
 }
 
 void addArraysCPU(const int *a, const int *b, int *c, int n)
 {
-	for (int i = 0; i < n; i++)
-	{
-		c[i] = a[i] + b[i];
-	}
+    for (int i = 0; i < n; i++)
+    {
+        c[i] = a[i] + b[i];
+    }
+}
+
+void addArraysCPUWithBranching(const int *a, const int *b, int *c, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        if (i < (n / 2))
+        {
+            c[i] = a[i] + b[i];
+        }
+        else
+        {
+            c[i] = a[i] - b[i];
+        }
+    }
 }
 
 int main(int argc, char **argv)
 {
-	// read command line arguments
-	int totalThreads = (1 << 20);
-	int blockSize = 256;
-	int numElements = NUM_ELEMENTS;
+    // read command line arguments
+    int totalThreads = (1 << 20);
+    int blockSize = 256;
+    int numElements = NUM_ELEMENTS;
 
-	if (argc >= 2)
-	{
-		totalThreads = atoi(argv[1]);
-	}
-	if (argc >= 3)
-	{
-		blockSize = atoi(argv[2]);
-	}
-	if (argc >= 4)
-	{
-		numElements = atoi(argv[3]);
-	}
+    if (argc >= 2)
+    {
+        totalThreads = atoi(argv[1]);
+    }
+    if (argc >= 3)
+    {
+        blockSize = atoi(argv[2]);
+    }
+    if (argc >= 4)
+    {
+        numElements = atoi(argv[3]);
+    }
 
-	int numBlocks = totalThreads / blockSize;
+    int numBlocks = totalThreads / blockSize;
 
-	// validate command line arguments
-	if (totalThreads % blockSize != 0)
-	{
-		++numBlocks;
-		totalThreads = numBlocks * blockSize;
+    // validate command line arguments
+    if (totalThreads % blockSize != 0)
+    {
+        ++numBlocks;
+        totalThreads = numBlocks * blockSize;
 
-		printf("Warning: Total thread count is not evenly divisible by the block size\n");
-		printf("The total number of threads will be rounded up to %d\n", totalThreads);
-	}
+        printf("Warning: Total thread count is not evenly divisible by "
+               "the block "
+               "size\n");
+        printf("The total number of threads will be rounded up to %d\n", totalThreads);
+    }
 
-	size_t sz = sizeof(int) * numElements;
+    size_t sz = sizeof(int) * numElements;
 
-	int *a = (int *)malloc(sz);
-	int *b = (int *)malloc(sz);
-	int *c = (int *)malloc(sz);
+    // Initialize arrays
+    int *a = (int *)malloc(sz);
+    int *b = (int *)malloc(sz);
+    int *c = (int *)malloc(sz);
 
-	for (int i = 0; i < numElements; i++)
-	{
-		a[i] = i;
-		b[i] = i;
-	}
+    for (int i = 0; i < numElements; i++)
+    {
+        a[i] = i;
+        b[i] = i;
+    }
 
-	int *d_a, *d_b, *d_c;
-	cudaMalloc(&d_a, sz);
-	cudaMalloc(&d_b, sz);
-	cudaMalloc(&d_c, sz);
+    // Process with GPU
+    auto startTime = std::chrono::high_resolution_clock::now();
+    int *d_a, *d_b, *d_c;
+    cudaMalloc(&d_a, sz);
+    cudaMalloc(&d_b, sz);
+    cudaMalloc(&d_c, sz);
 
-	cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
 
-	cudaEvent_t startEvent, stopEvent;
-	cudaEventCreate(&startEvent);
-	cudaEventCreate(&stopEvent);
+    addArrays<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
 
-	cudaEventRecord(startEvent);
-	addArrays<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
-	cudaEventRecord(stopEvent);
-	cudaEventSynchronize(stopEvent);
+    cudaMemcpy(c, d_c, sz, cudaMemcpyDeviceToHost);
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
 
-	float gpuTime;
-	cudaEventElapsedTime(&gpuTime, startEvent, stopEvent);
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto gpuTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000.0;
 
-	cudaMemcpy(c, d_c, sz, cudaMemcpyDeviceToHost);
-	cudaFree(d_a);
-	cudaFree(d_b);
-	cudaFree(d_c);
+    // Process with CPU
+    startTime = std::chrono::high_resolution_clock::now();
+    addArraysCPU(a, b, c, numElements);
+    endTime = std::chrono::high_resolution_clock::now();
+    auto cpuTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000.0;
 
-	// do something
-	clock_t startTime = clock();
-	addArraysCPU(a, b, c, numElements);
-	double cpuTime = (double)(clock() - startTime) / CLOCKS_PER_SEC * 1000.0;
+    printf("CPU time (without branching): %.3f ms\n", cpuTime);
+    printf("CUDA time (without branching): %.3f ms\n", gpuTime);
 
-	printf("CPU time: %.3f ms\n", cpuTime);
-	printf("CUDA time: %.3f ms\n", gpuTime);
+    // Process branching version with GPU
+    startTime = std::chrono::high_resolution_clock::now();
+    cudaMalloc(&d_a, sz);
+    cudaMalloc(&d_b, sz);
+    cudaMalloc(&d_c, sz);
 
-	for (int i = 0; i < 100; i++)
-	{
-		// printf("%d + %d = %d\n", a[i], b[i], c[i]);
-	}
-	free(a);
-	free(b);
-	free(c);
+    cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
+
+    addArraysWithBranching<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
+
+    cudaMemcpy(c, d_c, sz, cudaMemcpyDeviceToHost);
+
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+
+    endTime = std::chrono::high_resolution_clock::now();
+    auto gpuTimeWithBranching =
+        std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000.0;
+
+    // Process branching version with CPU
+    startTime = std::chrono::high_resolution_clock::now();
+    addArraysCPUWithBranching(a, b, c, numElements);
+    endTime = std::chrono::high_resolution_clock::now();
+    auto cpuTimeWithBranching =
+        std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000.0;
+
+    printf("CPU time (with branching): %.3f ms\n", cpuTimeWithBranching);
+    printf("CUDA time (with branching): %.3f ms\n", gpuTimeWithBranching);
+    free(a);
+    free(b);
+    free(c);
 }
