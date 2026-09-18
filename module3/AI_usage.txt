@@ -1,2 +1,4 @@
 I used AI (Opencode to be specific) to generate the table in run_comparison.md. 
-Everything else was written myself.
+I don't have the exact input/outputs since I had to tweak it a few times, but 
+essentialy I fed it the output of run_assignment.sh and asked it to convert from
+nanoseconds to microseconds and format everything into a table.
