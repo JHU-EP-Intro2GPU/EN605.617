@@ -117,10 +117,20 @@ int main(int argc, char **argv)
     cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
     addArrays<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
-    auto startTime = std::chrono::high_resolution_clock::now();
+
+    // Initialize CUDA events for timing (as I understand it, this measures the actual execution time directly on the
+    // GPU)
+    cudaEvent_t startEvent, stopEvent;
+    cudaEventCreate(&startEvent);
+    cudaEventCreate(&stopEvent);
+
+    float gpuMs = 0.0f;
+    cudaEventRecord(startEvent);
     addArrays<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
-    auto endTime = std::chrono::high_resolution_clock::now();
-    auto gpuTime = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+    cudaEventRecord(stopEvent);
+    cudaEventSynchronize(stopEvent);
+    cudaEventElapsedTime(&gpuMs, startEvent, stopEvent);
+    long long gpuTime = (long long)(gpuMs * 1e6);
 
     cudaMemcpy(c, d_c, sz, cudaMemcpyDeviceToHost);
     cudaFree(d_a);
@@ -128,26 +138,30 @@ int main(int argc, char **argv)
     cudaFree(d_c);
 
     // Process with CPU
-    startTime = std::chrono::high_resolution_clock::now();
+    auto startTime = std::chrono::high_resolution_clock::now();
     addArraysCPU(a, b, c, numElements);
-    endTime = std::chrono::high_resolution_clock::now();
+    auto endTime = std::chrono::high_resolution_clock::now();
     auto cpuTime = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
-    printf("CPU time (without branching): %ld ns\n", cpuTime);
-    printf("CUDA time (without branching): %ld ns\n", gpuTime);
+    printf("CPU time (without branching): %lld ns\n", (long long)cpuTime);
+    printf("CUDA time (without branching): %lld ns\n", gpuTime);
 
     // Process branching version with GPU
-
     cudaMalloc(&d_a, sz);
     cudaMalloc(&d_b, sz);
     cudaMalloc(&d_c, sz);
 
     cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
-    startTime = std::chrono::high_resolution_clock::now();
+
+    // Same thing with the GPU timing
+    float gpuMsWithBranching = 0.0f;
+    cudaEventRecord(startEvent);
     addArraysWithBranching<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
-    endTime = std::chrono::high_resolution_clock::now();
-    auto gpuTimeWithBranching = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+    cudaEventRecord(stopEvent);
+    cudaEventSynchronize(stopEvent);
+    cudaEventElapsedTime(&gpuMsWithBranching, startEvent, stopEvent);
+    long long gpuTimeWithBranching = (long long)(gpuMsWithBranching * 1e6);
 
     cudaMemcpy(c, d_c, sz, cudaMemcpyDeviceToHost);
 
@@ -155,14 +169,18 @@ int main(int argc, char **argv)
     cudaFree(d_b);
     cudaFree(d_c);
 
+    cudaEventDestroy(startEvent);
+    cudaEventDestroy(stopEvent);
+
     // Process branching version with CPU
     startTime = std::chrono::high_resolution_clock::now();
     addArraysCPUWithBranching(a, b, c, numElements);
     endTime = std::chrono::high_resolution_clock::now();
     auto cpuTimeWithBranching = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
-    printf("CPU time (with branching): %ld ns\n", cpuTimeWithBranching);
-    printf("CUDA time (with branching): %ld ns\n", gpuTimeWithBranching);
+    printf("CPU time (with branching): %lld ns\n", (long long)cpuTimeWithBranching);
+    printf("CUDA time (with branching): %lld ns\n", gpuTimeWithBranching);
+
     free(a);
     free(b);
     free(c);
