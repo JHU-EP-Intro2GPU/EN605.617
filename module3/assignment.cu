@@ -116,6 +116,8 @@ int main(int argc, char **argv)
 
     cudaMemcpy(d_a, a, sz, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, sz, cudaMemcpyHostToDevice);
+
+    // Run a kernel to warm up the GPU and avoid measuring any initialization overhead
     addArrays<<<numBlocks, blockSize>>>(d_a, d_b, d_c, numElements);
 
     // Initialize CUDA events for timing (as I understand it, this measures the actual execution time directly on the
