@@ -1,5 +1,7 @@
 //Based on the work of Andrew Krepps
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 __global__ void warmUp()
 {
@@ -56,6 +58,7 @@ int main(int argc, char** argv)
 		blockSize = atoi(argv[2]);
 	}
 
+	// calculate number of blocks
 	int numBlocks = totalThreads/blockSize;
 
 	// validate command line arguments
@@ -68,7 +71,7 @@ int main(int argc, char** argv)
 	}
 	
 	unsigned int array_size_bytes = (sizeof(float) * (totalThreads));
-	printf("Number of Threads: %d\n", totalThreads);
+	printf("Number of Threads elements: %d\n", totalThreads);
 	printf("Block size: %d\n", blockSize);
 	printf("Number of blocks: %d\n\n", numBlocks);
 	// allocate memory
@@ -85,7 +88,7 @@ int main(int argc, char** argv)
 	}
 
 
-
+	// allocate GPU memory
 	float* gpu_array_A;
 	float* gpu_array_B;
 	float* gpu_array_C;
@@ -150,7 +153,7 @@ int main(int argc, char** argv)
 	printf("-------------------------\n");
 	printf("Without branching: %.4f ms\n", gpuTime_NoBranch);
 	printf("With branching:    %.4f ms\n", gpuTime_Branching);
-	
+	// free memory
 	cudaFree(gpu_array_A);
 	cudaFree(gpu_array_B);
 	cudaFree(gpu_array_C_Branch);
