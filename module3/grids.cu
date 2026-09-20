@@ -28,37 +28,40 @@ __global__ void what_is_my_id_2d_A(
 	block_dimy[thread_idx] = blockDim.y;
 }
 
-#define ARRAY_SIZE_X 32
-#define ARRAY_SIZE_Y 16
+// #define ARRAY_SIZE_X 32
+// #define ARRAY_SIZE_& 16
 
-#define ARRAY_SIZE_IN_BYTES ((ARRAY_SIZE_X) * (ARRAY_SIZE_Y) * (sizeof(unsigned int)))
+// #define ARRAY_SIZE_IN_BYTES ((array_size_x) * (array_size_y) * (sizeof(unsigned int)))
 
 /* Declare statically six arrays of ARRAY_SIZE each */
-unsigned int cpu_block_x[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_block_y[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_thread[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_warp[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_calc_thread[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_xthread[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_ythread[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_grid_dimx[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_block_dimx[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_grid_dimy[ARRAY_SIZE_Y][ARRAY_SIZE_X];
-unsigned int cpu_block_dimy[ARRAY_SIZE_Y][ARRAY_SIZE_X];
 
-int main(void)
+// assumption is that threads_rect.x * blocks_rect.x = threads_square.x * blocks_square.x
+// assumption is that threads_rect.y * blocks_rect.y = threads_square.y * blocks_square.y
+void main_sub( const dim3 threads_rect, const dim3 blocks_rect, const dim3 threads_square,  const dim3 blocks_square)
 {
 	/* Total thread count = 32 * 4 = 128 */
-	const dim3 threads_rect(32,4);
-	const dim3 blocks_rect(1,4);
+	// const dim3 threads_rect(32,4);
+	// const dim3 blocks_rect(1,4);
 
 	/* Total thread count = 16 * 8 = 128 */
-	const dim3 threads_square(16, 8); /* 16 * 8 */
-	const dim3 blocks_square(2,2);
-
+	// const dim3 threads_square(16, 8); /* 16 * 8 */
+	// const dim3 blocks_square(2,2);
+	unsigned int array_size_x = threads_rect.x * blocks_rect.x;
+	unsigned int array_size_y = threads_rect.y * blocks_rect.y;
+	unsigned int array_size_bytes = array_size_x * array_size_y  * sizeof(unsigned int);
 	/* Needed to wait for a character at exit */
 	char ch;
-
+	unsigned int cpu_block_x[array_size_y][array_size_x];
+	unsigned int cpu_block_y[array_size_y][array_size_x];
+	unsigned int cpu_thread[array_size_y][array_size_x];
+	unsigned int cpu_warp[array_size_y][array_size_x];
+	unsigned int cpu_calc_thread[array_size_y][array_size_x];
+	unsigned int cpu_xthread[array_size_y][array_size_x];
+	unsigned int cpu_ythread[array_size_y][array_size_x];
+	unsigned int cpu_grid_dimx[array_size_y][array_size_x];
+	unsigned int cpu_block_dimx[array_size_y][array_size_x];
+	unsigned int cpu_grid_dimy[array_size_y][array_size_x];
+	unsigned int cpu_block_dimy[array_size_y][array_size_x];
 	/* Declare statically six arrays of ARRAY_SIZE each */
 	unsigned int * gpu_block_x;
 	unsigned int * gpu_block_y;
@@ -73,17 +76,17 @@ int main(void)
 	unsigned int * gpu_block_dimy;
 
 	/* Allocate arrays on the GPU */
-	cudaMalloc((void **)&gpu_block_x, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_block_y, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_thread, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_warp, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_calc_thread, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_xthread, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_ythread, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_grid_dimx, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_block_dimx, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_grid_dimy, ARRAY_SIZE_IN_BYTES);
-	cudaMalloc((void **)&gpu_block_dimy, ARRAY_SIZE_IN_BYTES);
+	cudaMalloc((void **)&gpu_block_x, array_size_bytes);
+	cudaMalloc((void **)&gpu_block_y, array_size_bytes);
+	cudaMalloc((void **)&gpu_thread, array_size_bytes);
+	cudaMalloc((void **)&gpu_warp, array_size_bytes);
+	cudaMalloc((void **)&gpu_calc_thread, array_size_bytes);
+	cudaMalloc((void **)&gpu_xthread, array_size_bytes);
+	cudaMalloc((void **)&gpu_ythread, array_size_bytes);
+	cudaMalloc((void **)&gpu_grid_dimx, array_size_bytes);
+	cudaMalloc((void **)&gpu_block_dimx, array_size_bytes);
+	cudaMalloc((void **)&gpu_grid_dimy, array_size_bytes);
+	cudaMalloc((void **)&gpu_block_dimy, array_size_bytes);
 
 	for( int kernel= 0; kernel < 2; kernel++)
 	{
@@ -109,22 +112,22 @@ int main(void)
 		}
 
 		/* Copy back the gpu results to the CPU */
-		cudaMemcpy(cpu_block_x, gpu_block_x, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_block_y, gpu_block_y, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_thread, gpu_thread, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_calc_thread, gpu_calc_thread, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_xthread, gpu_xthread, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_ythread, gpu_ythread, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_grid_dimx, gpu_grid_dimx, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_block_dimx, gpu_block_dimx, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_grid_dimy, gpu_grid_dimy, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
-		cudaMemcpy(cpu_block_dimy, gpu_block_dimy, ARRAY_SIZE_IN_BYTES, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_block_x, gpu_block_x, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_block_y, gpu_block_y, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_thread, gpu_thread, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_calc_thread, gpu_calc_thread, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_xthread, gpu_xthread, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_ythread, gpu_ythread, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_grid_dimx, gpu_grid_dimx, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_block_dimx, gpu_block_dimx, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_grid_dimy, gpu_grid_dimy, array_size_bytes, cudaMemcpyDeviceToHost);
+		cudaMemcpy(cpu_block_dimy, gpu_block_dimy, array_size_bytes, cudaMemcpyDeviceToHost);
 
 		printf("\nKernel %d\n", kernel);
 		/* Iterate through the arrays and print */
-		for(int y = 0; y < ARRAY_SIZE_Y; y++)
+		for(int y = 0; y < array_size_y; y++)
 		{
-			for(int x = 0; x < ARRAY_SIZE_X; x++)
+			for(int x = 0; x < array_size_x; x++)
 			{
 				printf("CT: %2u BKX: %1u BKY: %1u TID: %2u YTID: %2u XTID: %2u GDX: %1u BDX: %1u GDY: %1u BDY: %1u\n",
 						cpu_calc_thread[y][x], cpu_block_x[y][x], cpu_block_y[y][x], cpu_thread[y][x], cpu_ythread[y][x],
@@ -146,4 +149,46 @@ int main(void)
 	cudaFree(gpu_block_dimx);
 	cudaFree(gpu_grid_dimy);
 	cudaFree(gpu_block_dimy);
+}
+
+
+
+int main()
+{
+	// 128 total threads
+	main_sub(
+		dim3(8, 4),    // 32 threads/block
+		dim3(1, 4),    // 4 blocks
+		dim3(4, 8),    // 32 threads/block
+		dim3(2, 2));   // 4 blocks
+
+	// 256 total threads
+	main_sub(
+		dim3(16, 4),   // 64 threads/block
+		dim3(1, 4),    // 4 blocks
+		dim3(8, 8),    // 64 threads/block
+		dim3(2, 2));   // 4 blocks
+
+	// 384 total threads
+	main_sub(
+		dim3(24, 4),   // 96 threads/block
+		dim3(1, 4),    // 4 blocks
+		dim3(12, 8),   // 96 threads/block
+		dim3(2, 2));   // 4 blocks
+
+	// 512 total threads
+	main_sub(
+		dim3(32, 4),   // 128 threads/block
+		dim3(1, 4),    // 4 blocks
+		dim3(16, 8),   // 128 threads/block
+		dim3(2, 2));   // 4 blocks
+
+	// 1024 total threads
+	main_sub(
+		dim3(32, 8),   // 256 threads/block
+		dim3(1, 4),    // 4 blocks
+		dim3(32, 8),   // 256 threads/block
+		dim3(2, 2));   // 4 blocks
+
+	return EXIT_SUCCESS;
 }
