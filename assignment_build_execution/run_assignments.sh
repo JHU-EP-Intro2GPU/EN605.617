@@ -12,7 +12,7 @@
 #
 # Behavior:
 #   - If run inside a git project (a directory containing .git), it will:
-#       1. git pull (only if currently on main/master)
+#       1. git reset --hard && git pull (only if currently on main/master)
 #       2. run build.sh (if a "build" section exists in the config)
 #       3. run run.sh   (if a "run" section exists in the config)
 #     ...using the folder / flags described in the YAML config, logging
@@ -89,17 +89,19 @@ log_warn()    { log "${YELLOW}⚠️  $*${NC}"; }
 log_error()   { log "${RED}❌ $*${NC}"; }
 
 # ----------------------------------------------------------------------------
-# git pull — only if currently on main/master
+# git reset --hard && git pull — pull only if currently on main/master
 # ----------------------------------------------------------------------------
 
-do_git_pull() {
+do_git_reset_pull() {
     if [ ! -d .git ]; then
         return
     fi
 
     local branch
     branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-
+    local reset_hard
+    reset_hard="$(git reset --hard)"
+    log "$reset_hard"
     if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
         log_info "On branch '${branch}' — running git pull..."
         local pull_out
@@ -294,7 +296,7 @@ run_single_project() {
     fi
     had_config=1
 
-    do_git_pull
+    do_git_reset_pull
 
     local folder yerr
     yerr="$(mktemp)"
