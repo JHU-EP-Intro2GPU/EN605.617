@@ -1,0 +1,8 @@
+matplotlib
+pandas
+tabulate
+torch
+triton
+gluon
+pathlib
+pytest

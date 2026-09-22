@@ -6,11 +6,17 @@
 # assignment_config.yaml file.
 #
 # Usage:
-#   ./run_assignments.sh [config_file.yaml]
+#   ./run_assignments.sh [config_file.yaml] [project_dir]
 #
 #   config_file.yaml defaults to "assignment_config.yaml"
+#   Arguments are recognized by type (order does not matter): an existing
+#   directory is treated as project_dir; anything else is the config file.
 #
 # Behavior:
+#   - If a project_dir is passed, that directory is used as the project
+#     root and single-project mode runs there (build/run via
+#     run_single_project), regardless of the current working directory.
+#
 #   - If run inside a git project (a directory containing .git), it will:
 #       1. git reset --hard && git pull (only if currently on main/master)
 #       2. run build.sh (if a "build" section exists in the config)
@@ -37,7 +43,9 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 SCRIPT_FULL_PATH="$SCRIPT_DIR/$(basename "$SCRIPT_SOURCE")"
 HELPER="$SCRIPT_DIR/yaml_helper.py"
 
-CONFIG_FILE="${1:-assignment_config.yaml}"
+# Parsed in Main: optional config file and/or project directory.
+CONFIG_FILE="assignment_config.yaml"
+TARGET_DIR=""
 
 # Colors / styles
 RED='\033[0;31m'
@@ -409,7 +417,25 @@ run_parent() {
 # Main
 # ----------------------------------------------------------------------------
 
-if [ -d .git ]; then
+for arg in "$@"; do
+    if [ -d "$arg" ]; then
+        TARGET_DIR="$arg"
+    else
+        CONFIG_FILE="$arg"
+    fi
+done
+
+if [ -n "$TARGET_DIR" ]; then
+    TARGET_DIR="$(cd "$TARGET_DIR" && pwd)" || exit 1
+    # A config that already exists relative to the original cwd should
+    # keep working after we cd into the project; otherwise look for it
+    # inside TARGET_DIR (the usual assignment_config.yaml case).
+    if [ -f "$CONFIG_FILE" ]; then
+        CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" && pwd)/$(basename "$CONFIG_FILE")"
+    fi
+    cd "$TARGET_DIR" || exit 1
+    run_single_project "$CONFIG_FILE"
+elif [ -d .git ]; then
     run_single_project "$CONFIG_FILE"
 else
     run_parent "$CONFIG_FILE"
