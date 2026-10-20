@@ -1,0 +1,21 @@
+# Example: a run.sh that asks for input on standard input.
+#
+# src/run.sh prompts for a name and a favorite color, then prints a greeting.
+# Each run configuration supplies its own input with a "stdin" key.
+
+folder: src
+
+build: {}   # one build execution, no arguments: ./build.sh
+
+run:
+  # Form 3: a list of configurations, each run in turn.
+
+  # dict form, input only -> ./run.sh
+  - stdin: [Ada, blue]
+
+  # dict form, positional arg + input -> ./run.sh --shout
+  - args: [--shout]
+    stdin: [Grace, green]
+
+  # one string containing several lines -> ./run.sh
+  - stdin: "Linus\nblack"

@@ -19,10 +19,13 @@
 #
 #   - If run inside a git project (a directory containing .git), it will:
 #       1. git reset --hard && git pull (only if currently on main/master)
-#       2. run build.sh (if a "build" section exists in the config)
-#       3. run run.sh   (if a "run" section exists in the config)
-#     ...using the folder / flags described in the YAML config, logging
-#     everything to screen (in color) and to assignment_output.txt.
+#       2. run build.sh for each configuration in the "build" section
+#       3. run run.sh   for each configuration in the "run" section
+#     ...using the folder / flags / stdin described in the YAML config,
+#     logging everything to screen (in color) and to assignment_output.txt.
+#     A configuration's stdin lines are fed to the script; a configuration
+#     without stdin gets an empty input, so the script sees end-of-file
+#     instead of waiting on the terminal.
 #
 #   - If run inside a folder that is NOT itself a git project (i.e. a
 #     folder that contains a collection of git project subfolders), it
@@ -30,7 +33,13 @@
 #     same script there, and summarize all results into
 #     assignments_results.txt.
 #
-# Requires: bash 4.4+, python3, PyYAML (pip3 install pyyaml)
+# Requires: bash 4.4+, python3, PyYAML (pip3 install pyyaml), or uv.
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
+    echo "run_assignments.sh needs bash 4.4 or newer; this is ${BASH_VERSION}." >&2
+    echo "On macOS, /bin/bash is version 3.2. Install a newer one with: brew install bash" >&2
+    exit 1
+fi
 
 set -uo pipefail
 
@@ -133,6 +142,8 @@ do_git_reset_pull() {
 #   $3 = working directory to execute it from
 #   $4 = this configuration's 1-based index (e.g. "1")
 #   $5 = total number of configurations for this stage (e.g. "3")
+#   $6 = file holding this configuration's stdin lines ("" or an empty
+#        file means no input: the script gets /dev/null)
 #   $@ (remaining) = args to pass to the script for this configuration
 # Returns 0 on success, non-zero on failure. Never aborts the caller —
 # each configuration is independent, so the caller is expected to keep
@@ -145,7 +156,8 @@ run_stage() {
     local work_dir="$3"
     local cfg_index="$4"
     local cfg_total="$5"
-    shift 5
+    local stdin_file="$6"
+    shift 6
     local args=("$@")
 
     local label="$stage_name"
@@ -162,10 +174,23 @@ run_stage() {
 
     log_header "${label}: executing ${script_name} ${args[*]:-}"
 
+    # Standard input for the script. Lines are fed from the configured stdin
+    # file; with no stdin the script reads /dev/null (end-of-file), so a
+    # prompt the configuration did not anticipate fails instead of hanging.
+    local stdin_src="/dev/null"
+    if [ -n "$stdin_file" ] && [ -s "$stdin_file" ]; then
+        stdin_src="$stdin_file"
+        log_info "${label}: supplying $(wc -l < "$stdin_file" | tr -d ' ') line(s) of stdin:"
+        local input_line
+        while IFS= read -r input_line; do
+            log "${BLUE}     ⏎ ${input_line}${NC}"
+        done < "$stdin_file"
+    fi
+
     local tmp_out
     tmp_out="$(mktemp)"
 
-    ( cd "$work_dir" && bash "./${script_name}" "${args[@]}" ) > "$tmp_out" 2>&1
+    ( cd "$work_dir" && bash "./${script_name}" "${args[@]}" ) < "$stdin_src" > "$tmp_out" 2>&1
     local status=$?
 
     local content
@@ -192,6 +217,7 @@ run_stage() {
 #   $2 = script filename ("build.sh" / "run.sh")
 #   $3 = work_dir
 #   $4 = config_file
+#   $5 = section ("build" / "run")
 # Sets (via global out-vars, since bash can't return multiple values
 # cleanly): STAGE_HAD=1/0, STAGE_TOTAL=<n>, STAGE_PASSED=<n>
 # ----------------------------------------------------------------------------
@@ -235,6 +261,7 @@ run_all_configs_for_stage() {
 
     local i
     for (( i=0; i<STAGE_TOTAL; i++ )); do
+        # Command-line arguments for configuration i (NUL-separated tokens).
         local args_file
         args_file="$(mktemp)"
         "${PY_RUNNER[@]}" "$HELPER" "$config_file" "$section" --index "$i" > "$args_file"
@@ -242,9 +269,25 @@ run_all_configs_for_stage() {
         readarray -d '' args < "$args_file"
         rm -f "$args_file"
 
-        if run_stage "$stage_name" "$script_name" "$work_dir" "$((i + 1))" "$STAGE_TOTAL" "${args[@]}"; then
+        # Stdin lines for configuration i (NUL-separated). They are written
+        # to a file rather than kept in a bash variable, so blank lines and
+        # embedded newlines survive intact.
+        local items_file stdin_items=() stdin_file
+        items_file="$(mktemp)"
+        "${PY_RUNNER[@]}" "$HELPER" "$config_file" "$section" --stdin-index "$i" > "$items_file"
+        readarray -d '' stdin_items < "$items_file"
+        rm -f "$items_file"
+
+        stdin_file="$(mktemp)"
+        if [ "${#stdin_items[@]}" -gt 0 ]; then
+            printf '%s\n' "${stdin_items[@]}" > "$stdin_file"
+        fi
+
+        if run_stage "$stage_name" "$script_name" "$work_dir" "$((i + 1))" "$STAGE_TOTAL" \
+                "$stdin_file" "${args[@]}"; then
             STAGE_PASSED=$((STAGE_PASSED + 1))
         fi
+        rm -f "$stdin_file"
         # Deliberately no early exit here: each configuration is
         # independent, so a failure never stops the remaining ones.
     done

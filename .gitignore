@@ -31,5 +31,8 @@
 *.out
 *.app
 
+# UV files
+uv.lock
+
 .DS_Store
 .DS_Store?
