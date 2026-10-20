@@ -683,6 +683,389 @@ YAML
 }
 
 # ----------------------------------------------------------------------------
+# Tests: modules (choosing with -m / --module, the "current" default, errors)
+# ----------------------------------------------------------------------------
+
+# Writes a three-module configuration: alpha (folder defaults to its name),
+# current (the default, folder lib/current) and beta (folder lib/beta).
+two_module_config() {      # two_module_config <path>
+    write_file "$1" <<'YAML'
+modules:
+  - name: alpha
+    run:
+      - [one]
+  - name: current
+    folder: lib/current
+    build:
+      - [--fast]
+  - name: beta
+    folder: lib/beta
+    run:
+      - mode: quick
+YAML
+}
+
+# Runs yaml_helper.py with the same interpreter as the runner. Sets
+# HELPER_OUT (stdout, trailing newline removed) and HELPER_RC (exit code).
+helper_out() {
+    HELPER_OUT="$("${HELPER_PY[@]}" "$HELPER" "$@" 2>/dev/null)"
+    HELPER_RC=$?
+}
+
+test_module_flag_selects_module() {
+    local p="$WORK/module_flag"
+    make_project "$p"
+    record_script "$p/alpha/run.sh"
+    record_script "$p/lib/current/build.sh"
+    record_script "$p/lib/beta/run.sh"
+    two_module_config "$p/assignment_config.yaml"
+    run_runner "$p" --module beta
+    assert_eq "runner exits 0" "$RC" "0"
+    assert_eq "only beta's run.sh executed, with its flags" \
+        "$(calls_log "$p/lib/beta")" "./run.sh --mode quick"
+    assert_eq "alpha did not run" "$(calls_log "$p/alpha")" ""
+    assert_eq "current's build did not run" "$(calls_log "$p/lib/current")" ""
+    assert_contains "log names the chosen module" "$(plain_output "$p")" "Using module 'beta'"
+}
+
+test_current_module_is_the_default() {
+    local p="$WORK/current_default"
+    make_project "$p"
+    record_script "$p/lib/current/build.sh"
+    record_script "$p/alpha/run.sh"
+    record_script "$p/lib/beta/run.sh"
+    two_module_config "$p/assignment_config.yaml"
+    run_runner "$p"
+    assert_eq "runner exits 0" "$RC" "0"
+    assert_eq "current's build ran with no -m" "$(calls_log "$p/lib/current")" "./build.sh --fast"
+    assert_eq "alpha and beta did not run" \
+        "$(calls_log "$p/alpha")$(calls_log "$p/lib/beta")" ""
+}
+
+test_project_folder_name_is_not_a_default() {
+    # The project folder is named "alpha", and a module is named alpha. The
+    # run must still stop: only a module named "current" is the default.
+    local p="$WORK/alpha"
+    make_project "$p"
+    record_script "$p/alpha/run.sh"
+    write_file "$p/assignment_config.yaml" <<'YAML'
+modules:
+  - name: alpha
+    run:
+      - [one]
+  - name: beta
+    run:
+      - [two]
+YAML
+    run_runner "$p"
+    assert_eq "runner exits 1 when no default can be chosen" "$RC" "1"
+    assert_contains "error explains the missing default" "$(plain_output "$p")" \
+        "no module named 'current' to use by default"
+    assert_contains "error lists the modules to choose from" "$(plain_output "$p")" \
+        "use --module with one of: alpha, beta"
+    assert_eq "no script ran" "$(calls_log "$p/alpha")" ""
+}
+
+test_unknown_module_is_an_error() {
+    local p="$WORK/unknown_module"
+    make_project "$p"
+    record_script "$p/alpha/run.sh"
+    two_module_config "$p/assignment_config.yaml"
+    run_runner "$p" -m gamma
+    assert_eq "runner exits 1" "$RC" "1"
+    assert_contains "error names the missing module and lists the others" \
+        "$(plain_output "$p")" "no module named 'gamma'; available modules: alpha, current, beta"
+    assert_eq "no script ran" "$(calls_log "$p/alpha")" ""
+}
+
+test_module_flag_forms_and_bad_usage() {
+    local p="$WORK/flag_forms"
+    make_project "$p"
+    record_script "$p/lib/beta/run.sh"
+    two_module_config "$p/assignment_config.yaml"
+
+    run_runner "$p" --module=beta
+    assert_eq "--module=NAME works" "$RC" "0"
+    assert_eq "--module=beta ran beta" "$(calls_log "$p/lib/beta")" "./run.sh --mode quick"
+
+    rm -f "$p/lib/beta/calls.log"
+    run_runner "$p" -m beta
+    assert_eq "-m NAME works" "$RC" "0"
+    assert_eq "-m beta ran beta" "$(calls_log "$p/lib/beta")" "./run.sh --mode quick"
+
+    run_runner "$p" -m
+    assert_eq "-m with no value is rejected" "$RC" "1"
+    assert_contains "says -m needs a module name" "$OUT" "needs a module name"
+
+    run_runner "$p" --bogus
+    assert_eq "unknown option is rejected" "$RC" "1"
+    assert_contains "names the unknown option" "$OUT" "Unknown option '--bogus'"
+}
+
+test_module_flag_with_legacy_config_is_rejected() {
+    local p="$WORK/flag_legacy"
+    make_project "$p"
+    record_script "$p/src/run.sh"
+    write_file "$p/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [input.txt]
+YAML
+    run_runner "$p" -m anything
+    assert_eq "runner exits 1" "$RC" "1"
+    assert_contains "explains there is no modules key" "$(plain_output "$p")" \
+        "has no 'modules' key"
+    assert_eq "nothing ran" "$(calls_log "$p/src")" ""
+}
+
+test_modules_mixed_with_top_level_keys_is_rejected() {
+    local p="$WORK/mixed_keys"
+    make_project "$p"
+    record_script "$p/alpha/run.sh"
+    write_file "$p/assignment_config.yaml" <<'YAML'
+run:
+  - [top]
+modules:
+  - name: alpha
+    run:
+      - [one]
+YAML
+    run_runner "$p" -m alpha
+    assert_eq "runner exits 1" "$RC" "1"
+    assert_contains "explains the mix is not allowed" "$(plain_output "$p")" "not both"
+    assert_eq "nothing ran" "$(calls_log "$p/alpha")" ""
+}
+
+test_duplicate_and_unnamed_modules_are_rejected() {
+    local p="$WORK/bad_modules"
+    make_project "$p"
+    write_file "$p/assignment_config.yaml" <<'YAML'
+modules:
+  - name: current
+    run:
+      - [one]
+  - name: current
+    run:
+      - [two]
+YAML
+    run_runner "$p"
+    assert_eq "duplicate names: runner exits 1" "$RC" "1"
+    assert_contains "duplicate names are named" "$(plain_output "$p")" "duplicate module name(s): current"
+
+    write_file "$p/assignment_config.yaml" <<'YAML'
+modules:
+  - folder: src
+    run:
+      - [one]
+YAML
+    run_runner "$p"
+    assert_eq "unnamed module: runner exits 1" "$RC" "1"
+    assert_contains "unnamed module is reported" "$(plain_output "$p")" "needs a non-empty 'name'"
+}
+
+test_collection_forwards_module_flag() {
+    local parent="$WORK/collection_modules"
+    mkdir -p "$parent"
+    local proj
+    for proj in p1 p2; do
+        make_project "$parent/$proj"
+        two_module_config "$parent/$proj/assignment_config.yaml"
+        record_script "$parent/$proj/alpha/run.sh"
+        record_script "$parent/$proj/lib/beta/run.sh"
+    done
+    run_runner "$parent" --module beta
+    assert_eq "collection run exits 0" "$RC" "0"
+    assert_eq "p1 ran beta" "$(calls_log "$parent/p1/lib/beta")" "./run.sh --mode quick"
+    assert_eq "p2 ran beta" "$(calls_log "$parent/p2/lib/beta")" "./run.sh --mode quick"
+    assert_eq "alpha did not run in p1 or p2" \
+        "$(calls_log "$parent/p1/alpha")$(calls_log "$parent/p2/alpha")" ""
+    assert_contains "results list p1 with its config" "$(cat "$parent/assignments_results.txt")" \
+        "p1 | config: yes"
+}
+
+test_helper_module_queries() {
+    local y="$WORK/helper_modules.yaml"
+    two_module_config "$y"
+
+    helper_out "$y" select-module
+    assert_eq "select-module defaults to current" "$HELPER_OUT" "current"
+    assert_eq "select-module default exits 0" "$HELPER_RC" "0"
+
+    helper_out "$y" select-module --module beta
+    assert_eq "select-module --module beta" "$HELPER_OUT" "beta"
+
+    helper_out "$y" select-module --module gamma
+    assert_eq "select-module with unknown module exits 2" "$HELPER_RC" "2"
+
+    helper_out "$y" folder --module alpha
+    assert_eq "folder defaults to the module name" "$HELPER_OUT" "alpha"
+
+    helper_out "$y" folder --module beta
+    assert_eq "folder uses the module's folder key" "$HELPER_OUT" "lib/beta"
+
+    helper_out "$y" build --module current --count
+    assert_eq "build --count for a module" "$HELPER_OUT" "1"
+
+    helper_out "$y" run --module beta --count
+    assert_eq "run --count for a module" "$HELPER_OUT" "1"
+
+    helper_out "$y" run --count
+    assert_eq "current has no run section: exit 3" "$HELPER_RC" "3"
+
+    local top="$WORK/helper_top.yaml"
+    write_file "$top" <<'YAML'
+folder: src
+build:
+  - [--x]
+YAML
+    helper_out "$top" select-module
+    assert_eq "top-level config selects nothing" "$HELPER_OUT" ""
+    assert_eq "top-level select-module exits 0" "$HELPER_RC" "0"
+
+    helper_out "$top" select-module --module alpha
+    assert_eq "--module on a top-level config exits 2" "$HELPER_RC" "2"
+}
+
+test_example_multi_module() {
+    local p="$WORK/example_multi_module"
+    cp -R "$EXAMPLES_DIR/multi-module" "$p"
+    make_project "$p"
+
+    run_runner "$p"
+    assert_eq "without -m and no current module: exits 1" "$RC" "1"
+    assert_contains "asks for --module" "$(plain_output "$p")" "use --module with one of: alpha, beta"
+
+    run_runner "$p" -m alpha
+    local out; out="$(plain_output "$p")"
+    assert_eq "-m alpha exits 0" "$RC" "0"
+    assert_contains "alpha's run got its stdin and args" "$out" "alpha run: args=[one] hello Ada"
+    assert_contains "alpha's build ran both configurations" "$out" "BUILD summary: 2/2 configurations succeeded"
+    assert_not_contains "beta did not run" "$out" "beta run"
+
+    run_runner "$p" -m beta
+    out="$(plain_output "$p")"
+    assert_eq "-m beta exits 0" "$RC" "0"
+    assert_contains "beta's run executed" "$out" "beta run: --mode quick"
+    assert_not_contains "alpha did not run" "$out" "alpha run"
+}
+
+# ----------------------------------------------------------------------------
+# Tests: per-project time limit in collection runs (-t / --timeout)
+# ----------------------------------------------------------------------------
+
+test_timeout_option_and_defaults() {
+    local parent="$WORK/timeout_options"
+    mkdir -p "$parent"
+    make_project "$parent/p1"
+    record_script "$parent/p1/src/run.sh"
+    write_file "$parent/p1/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [x]
+YAML
+
+    run_runner "$parent"
+    assert_eq "default collection run exits 0" "$RC" "0"
+    assert_contains "default time limit is 10 minutes" "$OUT" "Time limit per project: 10 minute(s)"
+
+    run_runner "$parent" -t 3
+    assert_contains "-t sets the limit in minutes" "$OUT" "Time limit per project: 3 minute(s)"
+
+    run_runner "$parent" --timeout=5
+    assert_contains "--timeout=N sets the limit" "$OUT" "Time limit per project: 5 minute(s)"
+
+    run_runner "$parent" -t 0
+    assert_eq "-t 0 is rejected" "$RC" "1"
+    assert_contains "says it must be greater than 0" "$OUT" "greater than 0"
+
+    run_runner "$parent" -t abc
+    assert_eq "-t with a non-number is rejected" "$RC" "1"
+
+    run_runner "$parent" -t 1.5
+    assert_eq "-t with a fraction is rejected" "$RC" "1"
+
+    run_runner "$parent" -t
+    assert_eq "-t with no value is rejected" "$RC" "1"
+    assert_contains "says -t needs a number" "$OUT" "needs a number of minutes"
+}
+
+test_timeout_ignored_with_warning_for_single_project() {
+    local p="$WORK/timeout_single"
+    make_project "$p"
+    record_script "$p/src/run.sh"
+    write_file "$p/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [x]
+YAML
+    run_runner "$p" -t 2
+    assert_eq "single project still runs" "$(calls_log "$p/src")" "./run.sh x"
+    assert_contains "warns that -t is for collection runs" "$OUT" "applies to collection runs only"
+}
+
+test_timeout_stops_hung_project_and_continues() {
+    local parent="$WORK/timeout_hung"
+    mkdir -p "$parent"
+    make_project "$parent/hung"
+    write_script "$parent/hung/src/run.sh" <<'SH'
+#!/usr/bin/env bash
+echo "started" >> calls.log
+sleep 61
+echo "should not get here"
+SH
+    write_file "$parent/hung/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [x]
+YAML
+    make_project "$parent/ok"
+    record_script "$parent/ok/src/run.sh"
+    write_file "$parent/ok/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [x]
+YAML
+
+    export RUNNER_TIMEOUT_SECONDS=2
+    local started=$SECONDS
+    run_runner "$parent"
+    local elapsed=$((SECONDS - started))
+    unset RUNNER_TIMEOUT_SECONDS
+
+    assert_eq "collection run exits 0 after a timeout" "$RC" "0"
+    assert_contains "hung project is recorded as timed out" \
+        "$(cat "$parent/assignments_results.txt")" "hung | TIMED OUT"
+    assert_eq "the hung project started its script" "$(calls_log "$parent/hung/src")" "started"
+    assert_contains "the next project still ran" "$(cat "$parent/assignments_results.txt")" \
+        "ok | config: yes"
+    assert_eq "the project after the timeout ran" "$(calls_log "$parent/ok/src")" "./run.sh x"
+    assert_true "the run stopped well before the script's 61 seconds ($elapsed s)" \
+        test "$elapsed" -lt 30
+    sleep 1
+    assert_eq "no sleep from the stopped script is left running" \
+        "$(ps -eo args 2>/dev/null | grep -c '[s]leep 61')" "0"
+}
+
+test_fast_project_is_not_timed_out() {
+    local parent="$WORK/timeout_fast"
+    mkdir -p "$parent"
+    make_project "$parent/quick"
+    record_script "$parent/quick/src/run.sh"
+    write_file "$parent/quick/assignment_config.yaml" <<'YAML'
+folder: src
+run:
+  - [x]
+YAML
+    export RUNNER_TIMEOUT_SECONDS=30
+    run_runner "$parent"
+    unset RUNNER_TIMEOUT_SECONDS
+    assert_eq "collection run exits 0" "$RC" "0"
+    assert_contains "fast project completes normally" "$(cat "$parent/assignments_results.txt")" \
+        "quick | config: yes | build: none | run: OK (1/1)"
+    assert_not_contains "no timeout recorded" "$(cat "$parent/assignments_results.txt")" "TIMED OUT"
+}
+
+# ----------------------------------------------------------------------------
 # Test list and runner
 # ----------------------------------------------------------------------------
 
@@ -712,6 +1095,21 @@ TESTS=(
     test_mixed_list_rejected_other_section_still_runs
     test_args_must_be_a_list
     test_stdin_must_be_plain_values
+    test_module_flag_selects_module
+    test_current_module_is_the_default
+    test_project_folder_name_is_not_a_default
+    test_unknown_module_is_an_error
+    test_module_flag_forms_and_bad_usage
+    test_module_flag_with_legacy_config_is_rejected
+    test_modules_mixed_with_top_level_keys_is_rejected
+    test_duplicate_and_unnamed_modules_are_rejected
+    test_collection_forwards_module_flag
+    test_helper_module_queries
+    test_example_multi_module
+    test_timeout_option_and_defaults
+    test_timeout_ignored_with_warning_for_single_project
+    test_timeout_stops_hung_project_and_continues
+    test_fast_project_is_not_timed_out
 )
 
 run_all_tests() {

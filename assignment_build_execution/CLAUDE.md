@@ -25,7 +25,9 @@ implementation.
   The only file a user runs directly.
 - **`yaml_helper.py`** — a stateless CLI. It's the *only* place YAML is
   parsed, and it never writes anything. Usage:
-  `yaml_helper.py <config> <folder|build|run> [--count | --index N | --stdin-index N]`.
+  `yaml_helper.py <config> select-module [--module NAME]`,
+  `yaml_helper.py <config> folder [--module NAME]`, or
+  `yaml_helper.py <config> <build|run> [--module NAME] [--count | --index N | --stdin-index N]`.
   Exit codes are load-bearing (see below).
 - **`pyproject.toml`** — declares the `pyyaml` dependency so `uv run`
   can execute `yaml_helper.py` in an isolated env. `run_assignments.sh`
@@ -33,11 +35,37 @@ implementation.
   and falls back to bare `python3` (assumes PyYAML preinstalled) otherwise.
   Don't remove the fallback; some environments won't have `uv`.
 - **`tests/run_tests.sh`** — end-to-end suite. See "Testing" below.
-- **`examples/`** — two example projects (`greeter/` for stdin, `build-matrix/`
-  for multi-config builds). They have no `.git` (nested repos can't be
+- **`examples/`** — three example projects (`greeter/` for stdin, `build-matrix/`
+  for multi-config builds, `multi-module/` for module selection with `-m`). They have no `.git` (nested repos can't be
   committed); the tests copy them and `git init` the copies.
 
 ## Configuration model
+
+### Modules (outermost layer)
+
+A file is either:
+- **modules**: a `modules` key holding one module object or a list of them.
+  Each has a unique, non-empty `name`, an optional `folder` (defaults to
+  `name`), and optional `build`/`run`. Top-level `folder`/`build`/`run` are
+  rejected alongside `modules`.
+- **single configuration**: no `modules` key. `folder`, `build` and `run` sit at
+  the top level, and `folder` defaults to `.`.
+
+Module choice (`resolve()` in `yaml_helper.py`):
+- `--module NAME` picks the module named NAME. An unknown name is an error.
+- No `--module`: the module named `current` is used. If there is none, it is an
+  error that lists the available modules. The project folder name is **never**
+  used to pick a module. (An earlier version did that; it was changed on purpose,
+  so don't reintroduce it.)
+- `--module` on a file without `modules` is an error.
+
+`run_assignments.sh` parses `-m`/`--module`/`--module=NAME` and keeps the choice
+in the global `MODULE_ARGS` array, which is `(--module NAME)` or empty. The
+array is passed to every helper query. In single-project mode the runner calls
+`select-module` before any git work, so a bad choice pulls and runs nothing.
+In collection mode it forwards `--module` to each child run.
+
+### Build/run forms (inside a module, or at the top level)
 
 `build`/`run` can each be:
 1. a single dict → **one** configuration. Its reserved keys `stdin` and
@@ -64,10 +92,15 @@ this smarter by guessing: wrap the values in their own list, as the examples do.
 
 ## Contract between the two files (don't break this silently)
 
-`yaml_helper.py <config> folder` → exit 0, folder path (or `.`) on stdout.
+`yaml_helper.py <config> select-module [--module NAME]` → exit 0, the chosen
+module name on stdout (empty for a single configuration). Exit 2 if no module
+can be chosen.
 
-`yaml_helper.py <config> <build|run> --count` → number of configurations
-(0 if present but empty, e.g. `build: []`).
+`yaml_helper.py <config> folder [--module NAME]` → exit 0, folder path (or `.`)
+on stdout. The folder is the `folder` key, else the module name, else `.`.
+
+`yaml_helper.py <config> <build|run> [--module NAME] --count` → number of
+configurations (0 if present but empty, e.g. `build: []`).
 
 `yaml_helper.py <config> <build|run> --index N` (0-based) → that config's
 argv tokens, each followed by `\0` (empty output if none).
@@ -79,15 +112,20 @@ Every configuration is parsed and validated before any query is answered,
 so `--count` also fails on a malformed config. Bash never sees a half-valid
 section.
 
-Exit codes, consumed by `run_all_configs_for_stage()` in `run_assignments.sh`:
+Exit codes, consumed by `run_all_configs_for_stage()` and `run_single_project()`
+in `run_assignments.sh`:
 - `0` — success.
 - `3` — the `build`/`run` section doesn't exist. NOT an error: that stage is
   skipped with an info line. Distinct from present-but-empty (`[]`), which is
   exit `0` with `--count` printing `0`.
 - `2` — real parse/read error (bad YAML, missing PyYAML, unreadable file,
-  invalid mixed-list shape, invalid `args`/`stdin` shape, or an out-of-range
-  `--index` / `--stdin-index`).
-- `1` — bad CLI usage.
+  invalid mixed-list shape, invalid `args`/`stdin` shape, invalid modules
+  (missing or duplicate names, mixed with top-level keys), no module that can be
+  chosen, `--module` on a file without `modules`, or an out-of-range `--index` /
+  `--stdin-index`).
+- `1` — bad CLI usage (including an unknown option or `-m` with no value). In
+  the runner, a module that cannot be chosen also ends the single-project run
+  with status 1, after the error is logged and the status file is written.
 
 If you change these semantics, update the `rc` handling in
 `run_all_configs_for_stage()`. There is exactly one such block, shared by
@@ -149,6 +187,24 @@ input.
   is expected and is not masked: don't add a try-uv-then-python3 retry inside the
   runner. The test harness handles this case itself (see "Testing").
 
+## Per-project time limit (collection mode)
+
+`-t`/`--timeout` sets `TIMEOUT_MINUTES` (default 10, whole minutes, > 0). It is
+enforced only by the parent in `run_parent()`, through `run_child_with_timeout()`.
+The child pass is not given `-t`, so the time limit is never checked twice.
+
+- The child pass and its watchdog each run as their own process group (`set -m`
+  around the background jobs), so on timeout `kill -- -PGID` stops the scripts
+  the child started too. The watchdog creates a marker file before it kills, and
+  that marker, not the exit status, is how a timeout is detected (the status is
+  128+ on a signal and can't be told apart from a script's own failure).
+- A timeout is returned as `124`. The parent records `TIMED OUT` in
+  `assignments_results.txt` and does not read a status file for that project.
+- `RUNNER_TIMEOUT_SECONDS` overrides the limit in seconds. It is a test hook, so
+  the suite can check timeouts in about two seconds. Don't document it as a user
+  setting.
+- In single-project mode `-t` is accepted and ignored, with a warning.
+
 ## Testing
 
 `tests/run_tests.sh` is the test suite. Run it from anywhere. It needs bash
@@ -187,9 +243,9 @@ path; uv is optional.
   `/opt/homebrew/bin`) would then hide those tools too, and on macOS the runner
   would be started by `/bin/bash` 3.2. The runner is always started with
   `$RUNNER_BASH`, resolved before PATH changes.
-- Last verified: all checks passed on the python3 path. The uv path has not
-  been exercised in this sandbox (no PyPI access); verify it on a networked
-  machine before relying on it.
+- Last verified: all 136 checks passed on the python3 path, including the module
+  tests. The uv path has not been exercised in this sandbox (no PyPI access);
+  verify it on a networked machine before relying on it.
 
 When you add a configuration form or a stage behavior, add a test for it in the
 same change. Include a negative test (a rejected shape) if the change adds
@@ -214,3 +270,6 @@ validation.
   argv element. Secrets and blank lines both need the file route.
 - Don't use the `stdin` or `args` keys as flag names. They're reserved, and the
   README says so.
+- Don't pick a module by matching the project folder name. Only `current` is the
+  default, and `-m` is the explicit choice. The README's module table and the
+  tests depend on this.

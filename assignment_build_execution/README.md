@@ -51,22 +51,81 @@ ln -s "$(pwd)/run_assignments.sh" /usr/local/bin/run_assignments
 
 ## `assignment_config.yaml` format
 
+The file holds one or more **modules**. A module is one buildable/runnable part
+of the project, and it carries the full configuration for that part: a `name`,
+and optionally `folder`, `build` and `run`.
+
+```yaml
+modules:
+  - name: current     # the default module (used when no -m is given)
+    folder: src        # where build.sh / run.sh live (relative to the project root)
+    build:              # optional — omit to skip the build stage
+      target: release    # dict form -> ./build.sh --target release -O 2 --verbose true
+      O: 2                # 1-char key -> single-dash flag: -O 2
+      verbose: true
+    run:                # optional — omit to skip the run stage
+      - input.txt        # list form -> ./run.sh input.txt 42 --dry-run
+      - "42"
+      - --dry-run
+
+  - name: tools         # a second module, selected with -m tools
+    folder: lib/tools    # optional; defaults to the name ("tools")
+    run:
+      - [--check]
+```
+
+### Modules
+
+- `name` — required, non-empty, unique within the file. It names the module for
+  `-m`/`--module`. A module named **`current`** is the default: it is used when
+  no `-m` is given.
+- `folder` — optional. Where `build.sh`/`run.sh` live, relative to the project
+  root. If it is missing, the folder is the module's `name`. So
+  `name: tools` runs in `tools/`.
+- `build` / `run` — optional, as described next.
+- `modules` may be a list of module objects, or a single module object.
+
+Choosing a module:
+
+| Command                       | Module used                                              |
+|-------------------------------|----------------------------------------------------------|
+| `run_assignments.sh -m tools` | `tools` (an error if there is no module of that name)    |
+| `run_assignments.sh`          | `current`, if a module has that name                      |
+| no `-m` and no `current`      | nothing runs: the error lists the available modules      |
+
+The module name is never guessed from the project's folder name. A project
+called `tools` does not use the `tools` module by default; name a module
+`current` for that, or pass `-m`.
+
+A file with only one module is still a module list, so name that one `current`
+or pass `-m` to select it.
+
+Modules cannot be mixed with top-level keys. A file must use either `modules`,
+or the single-configuration shape below, not both. Module names must be unique.
+`-m` on a file without a `modules` key is an error.
+
+### Single configuration (no `modules` key)
+
+A project with only one part can put the keys at the top level. This is the
+same as a single module with no name, and `-m` is not accepted with it:
+
 ```yaml
 folder: src        # path (relative to this file) containing build.sh / run.sh
 
-build:              # optional — omit to skip the build stage
-  target: release    # dict form -> ./build.sh --target release -O 2 --verbose true
-  O: 2                # 1-char key -> single-dash flag: -O 2
-  verbose: true
+build:
+  target: release
+  O: 2
 
-run:                # optional — omit to skip the run stage
-  - input.txt        # list form -> ./run.sh input.txt 42 --dry-run
+run:
+  - input.txt
   - "42"
   - --dry-run
 ```
 
-- `folder` — required. Where `build.sh`/`run.sh` live, relative to the
-  config file's directory.
+`folder` defaults to `.` (the project root) when it is omitted.
+
+### Build and run sections
+
 - `build` / `run` — each is optional and independent. Each may be
   written as **any** of:
   1. a **dictionary** of keys — one execution. Its keys are flags, plus two
@@ -158,24 +217,33 @@ Run from the root of a git project (a directory containing `.git`):
 
 ```bash
 cd my-project
-/path/to/run_assignments.sh                       # looks for assignment_config.yaml
+/path/to/run_assignments.sh                       # runs the "current" module
+/path/to/run_assignments.sh -m tools               # runs the module named "tools"
+/path/to/run_assignments.sh --module=tools         # same, with =
 /path/to/run_assignments.sh other_config.yaml      # or a custom filename
-/path/to/run_assignments.sh assignment_config.yaml /path/to/my-project   # or from anywhere
+/path/to/run_assignments.sh -m tools assignment_config.yaml /path/to/my-project   # or from anywhere
+/path/to/run_assignments.sh --help                 # usage
 ```
+
+Arguments may come in any order. `-m` / `--module` takes a module name. Any
+other argument that is an existing directory is the project directory, and
+any other argument is the config file name.
 
 This will:
 
-1. Check the current git branch; if it's `main` or `master`, run
+1. Choose the module (see "Modules" above). If it can't be chosen, the error
+   names the modules that are available, and nothing is pulled or run.
+2. Check the current git branch; if it's `main` or `master`, run
    `git pull` (otherwise it warns and skips the pull — it will not pull
    on a feature branch).
-2. Run every configuration in `build` (if a `build` section exists in
-   the config), one after another.
-3. Run every configuration in `run` (if a `run` section exists in the
-   config), one after another.
-4. Write all output (with ANSI colors stripped) to `assignment_output.txt`
+3. Run every configuration in `build` (if a `build` section exists in
+   the module), one after another.
+4. Run every configuration in `run` (if a `run` section exists in the
+   module), one after another.
+5. Write all output (with ANSI colors stripped) to `assignment_output.txt`
    in the project root, while also printing colored/emoji output live to
    the terminal.
-5. Write `.assignment_status.env` — a small machine-readable status file
+6. Write `.assignment_status.env` — a small machine-readable status file
    used internally when this script is invoked from parent (collection)
    mode. Safe to ignore/delete in single-project use.
 
@@ -214,6 +282,20 @@ cd all-my-projects/
 /path/to/run_assignments.sh
 ```
 
+Each project gets a time limit. The default is **10 minutes**, and `-t` /
+`--timeout` sets it in whole minutes:
+
+```bash
+/path/to/run_assignments.sh -t 30          # 30 minutes per project
+/path/to/run_assignments.sh --timeout=5    # 5 minutes per project
+```
+
+A project that is still running at its limit is stopped, together with the
+build and run scripts it started, and is recorded as `TIMED OUT`. The next
+project then starts. The limit covers the whole project pass (git pull, build,
+and run). It applies only to collection runs: a single-project run ignores `-t`
+and says so.
+
 This will recurse into every immediate subfolder that contains `.git`,
 run the same single-project flow there (looking for
 `assignment_config.yaml` at that subfolder's root — warning, not
@@ -247,8 +329,11 @@ configurations to run.
 ## Testing
 
 ```bash
-tests/run_tests.sh
+tests/run_tests.sh          # or: zsh tests/run_tests.sh
 ```
+
+The test harness runs under bash 4.4+ or zsh 5.9+. The runner itself is a bash
+script, so bash must be installed either way.
 
 The suite builds throwaway git projects in a temporary directory, runs the
 runner against them, and checks the logs, status files, and which scripts
@@ -265,6 +350,10 @@ actually executed. It covers:
 - git pull on `main` (failure is a warning) and on a feature branch (skipped);
 - the project-directory argument, collection mode with a mix of projects, and the
   example projects in `examples/`;
+- module selection: `-m` / `--module=` / missing value, the `current` default and
+  its absence, unknown modules, `-m` on a legacy file, modules mixed with top-level
+  keys, duplicate or unnamed modules, `-m` forwarded to each project in collection
+  mode, and the `examples/multi-module` project;
 - `yaml_helper.py` output and exit codes directly, and rejection of invalid
   configurations (mixed lists, non-list `args`, mapping-valued `stdin`).
 
@@ -284,6 +373,8 @@ See `examples/README.md`. Briefly:
   configuration supplies input in each form, and one run uses `--shout`.
 - `examples/build-matrix/` — four build configurations, one of which fails on
   purpose, so you can see the failure report and the configurations that follow it.
+- `examples/multi-module/` — two modules, `alpha` and `beta`, in one file. Run
+  it with `-m alpha` or `-m beta`.
 
 ## Notes / limitations
 
@@ -309,5 +400,10 @@ See `examples/README.md`. Briefly:
   values in their own `[ ... ]` list item if you meant them as one
   configuration among several (see the `assignment_config.yaml`
   example).
+- Module selection never guesses. With no `-m` and no module named `current`,
+  nothing runs, and the error lists the modules. An unknown `-m` name is an
+  error, and so is `-m` on a file without a `modules` key.
+- A module's `folder` defaults to its `name`. A module named `current` therefore
+  needs an explicit `folder` if its scripts are not in a folder called `current`.
 - Boolean flag values are written as lowercase `true` / `false`, matching the
   YAML and the examples above. Earlier versions wrote Python's `True` / `False`.

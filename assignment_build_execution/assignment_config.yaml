@@ -5,11 +5,34 @@
 # find build.sh / run.sh, what arguments to pass them, and - for scripts
 # that ask for input - what to type on their standard input.
 #
-# folder:
-#   Path (relative to this file / the project root) to the directory
-#   that contains build.sh and/or run.sh.
+# The file has two shapes. This template uses the "modules" shape, which
+# lets one file describe several buildable/runnable parts of a project.
+# The single-configuration shape is shown at the bottom.
 #
-# build / run:
+# ---------------------------------------------------------------------------
+# modules:
+#   A list of module objects (or one module object). Each module holds the
+#   full configuration for one part of the project:
+#
+#     name:    REQUIRED. The top-level folder this module is for. It also
+#              selects the module: run_assignments.sh -m NAME uses it.
+#     folder:  OPTIONAL. Where build.sh / run.sh live, relative to the
+#              project root. Defaults to the name.
+#     build:   OPTIONAL. See "build / run" below.
+#     run:     OPTIONAL. See "build / run" below.
+#
+#   Choosing a module:
+#     - run_assignments.sh -m NAME (or --module NAME) runs that module.
+#     - With no -m, the module named "current" is used. If there is none,
+#       the run stops and lists the modules you can choose.
+#     - A file with a single module object works the same way, as long as
+#       it is named "current" or -m names it.
+#
+#   Module names must be unique. Top-level folder/build/run keys cannot be
+#   mixed with a "modules" key in the same file.
+#
+# ---------------------------------------------------------------------------
+# build / run (inside a module, or at the top level of the single form):
 #   Each is OPTIONAL and independent. Omit either one if that stage
 #   doesn't apply. Each may be written as ANY of these forms:
 #
@@ -47,38 +70,53 @@
 #   anything else: a flag, as described above.
 #   "stdin" and "args" are reserved, so a flag cannot use either name.
 #
-# This example shows form (3) for both "build" and "run", with stdin on
-# the run configurations.
+# ---------------------------------------------------------------------------
 
-folder: src
+modules:
+  # Module "current": the default, used when no -m is given. Its build.sh
+  # and run.sh live in src/, so folder says so.
+  - name: current
+    folder: src
+    build:
+      # config 1 (dict form) -> ./build.sh --target debug --verbose true
+      - target: debug
+        verbose: true
+      # config 2 (dict form) -> ./build.sh --target release -O 2
+      - target: release
+        O: 2
+      # config 3 (list form, wrapped so it's unambiguous as its own config)
+      # -> ./build.sh --lint-only
+      - [--lint-only]
 
-build:
-  # config 1 (dict form) -> ./build.sh --target debug --verbose true
-  - target: debug
-    verbose: true
-  # config 2 (dict form) -> ./build.sh --target release -O 2
-  - target: release
-    O: 2
-  # config 3 (list form, wrapped so it's unambiguous as its own config)
-  # -> ./build.sh --lint-only
-  - [--lint-only]
+    run:
+      # config 1 (list form) -> ./run.sh input.txt
+      - [input.txt]
+      # config 2 (dict form) -> ./run.sh --mode quick
+      - mode: quick
+      # config 3 (dict form) -> ./run.sh --mode thorough --retries 3
+      - mode: thorough
+        retries: 3
+      # config 4 (interactive) -> ./run.sh input.txt
+      # run.sh reads a name and a color from stdin, so give it those two lines.
+      - args: [input.txt]
+        stdin:
+          - Ada
+          - blue
 
-run:
-  # config 1 (list form) -> ./run.sh input.txt
-  - [input.txt]
-  # config 2 (dict form) -> ./run.sh --mode quick
-  - mode: quick
-  # config 3 (dict form) -> ./run.sh --mode thorough --retries 3
-  - mode: thorough
-    retries: 3
-  # config 4 (interactive) -> ./run.sh input.txt
-  # run.sh reads a name and a color from stdin, so give it those two lines.
-  - args: [input.txt]
-    stdin:
-      - Ada
-      - blue
+  # A second module, for a separate folder of the same project. Run it with:
+  #   ./run_assignments.sh -m tools
+  # - name: tools
+  #   folder: lib/tools     # optional; defaults to "tools"
+  #   run:
+  #     - [--check]
 
-# --- Single-configuration equivalent (form 1 / form 2), for reference ---
+# ---------------------------------------------------------------------------
+# Single-configuration shape (no "modules" key). The keys sit at the top
+# level and are used as the one configuration for the project. Use this when
+# a project has just one part. Equivalent to one module whose name is the
+# project folder's name.
+#
+# folder: src
 # build:
 #   target: release
 #   O: 2
