@@ -1,0 +1,34 @@
+name: assignment_build_execution tests
+
+# Runs on every pull request that touches this folder. "synchronize" fires
+# each time a new commit is pushed to the PR branch, so every commit is tested.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "assignment_build_execution/**"
+      - ".github/workflows/assignment-build-execution-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assignment-build-execution-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: assignment_build_execution
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run the test suite
+        run: uv run tests/run_tests.sh
