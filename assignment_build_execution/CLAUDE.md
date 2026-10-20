@@ -6,8 +6,9 @@ before making changes.
 ## What this is
 
 A bash + Python toolkit (`run_assignments.sh` + `yaml_helper.py`) that
-executes a project's `build.sh`/`run.sh` using arguments described in an
-`assignment_config.yaml` file. It has two modes, auto-detected by cwd:
+executes a project's `build.sh`/`run.sh` using arguments and stdin lines
+described in an `assignment_config.yaml` file. It has two modes,
+auto-detected by cwd:
 
 - **Single-project mode**: cwd contains `.git` → run build/run directly.
 - **Parent/collection mode**: cwd does NOT contain `.git` → treat
@@ -20,202 +21,255 @@ implementation.
 ## Architecture
 
 - **`run_assignments.sh`** — all orchestration logic: mode detection,
-  logging, git pull, stage execution, status aggregation. This is the
-  only file a user runs directly.
-- **`yaml_helper.py`** — a stateless CLI: `yaml_helper.py <config> <folder|build|run> [--count | --index N]`.
-  It's the *only* place YAML is parsed. It never touches the filesystem
-  beyond reading the config file. Exit codes are meaningful and load-bearing
-  (see below) — the bash side branches on them. `build`/`run` each expand
-  to a *list* of independent configurations (see "Multi-config model"
-  below) — the CLI is queried in two steps (`--count` then `--index N`
-  per config) rather than dumping everything in one call, specifically
-  so bash never has to hold more than one config's worth of NUL-joined
-  args in a single variable (see "Why two-step --count/--index" below).
+  logging, git pull, stage execution, stdin plumbing, status aggregation.
+  The only file a user runs directly.
+- **`yaml_helper.py`** — a stateless CLI. It's the *only* place YAML is
+  parsed, and it never writes anything. Usage:
+  `yaml_helper.py <config> select-module [--module NAME]`,
+  `yaml_helper.py <config> folder [--module NAME]`, or
+  `yaml_helper.py <config> <build|run> [--module NAME] [--count | --index N | --stdin-index N]`.
+  Exit codes are load-bearing (see below).
 - **`pyproject.toml`** — declares the `pyyaml` dependency so `uv run`
-  can execute `yaml_helper.py` in an isolated env without the user
-  manually managing a venv. `run_assignments.sh` prefers `uv run
-  --project "$SCRIPT_DIR" python3 ...` when `uv` is on PATH, and falls
-  back to bare `python3` (assumes PyYAML preinstalled) otherwise. Both
-  paths are exercised in `run_assignments.sh` — don't remove the
-  fallback, some environments won't have `uv`.
+  can execute `yaml_helper.py` in an isolated env. `run_assignments.sh`
+  prefers `uv run --project "$SCRIPT_DIR" python3 ...` when `uv` is on PATH,
+  and falls back to bare `python3` (assumes PyYAML preinstalled) otherwise.
+  Don't remove the fallback; some environments won't have `uv`.
+- **`tests/run_tests.sh`** — end-to-end suite. See "Testing" below.
+- **`examples/`** — three example projects (`greeter/` for stdin, `build-matrix/`
+  for multi-config builds, `multi-module/` for module selection with `-m`). They have no `.git` (nested repos can't be
+  committed); the tests copy them and `git init` the copies.
 
-## Multi-config model
+## Configuration model
 
-`build`/`run` in the YAML can each be:
-1. a single dict (`{flag: value}`) → **one** configuration
-2. a single flat list of scalars → **one** configuration, positional args
+### Modules (outermost layer)
+
+A file is either:
+- **modules**: a `modules` key holding one module object or a list of them.
+  Each has a unique, non-empty `name`, an optional `folder` (defaults to
+  `name`), and optional `build`/`run`. Top-level `folder`/`build`/`run` are
+  rejected alongside `modules`.
+- **single configuration**: no `modules` key. `folder`, `build` and `run` sit at
+  the top level, and `folder` defaults to `.`.
+
+Module choice (`resolve()` in `yaml_helper.py`):
+- `--module NAME` picks the module named NAME. An unknown name is an error.
+- No `--module`: the module named `current` is used. If there is none, it is an
+  error that lists the available modules. The project folder name is **never**
+  used to pick a module. (An earlier version did that; it was changed on purpose,
+  so don't reintroduce it.)
+- `--module` on a file without `modules` is an error.
+
+`run_assignments.sh` parses `-m`/`--module`/`--module=NAME` and keeps the choice
+in the global `MODULE_ARGS` array, which is `(--module NAME)` or empty. The
+array is passed to every helper query. In single-project mode the runner calls
+`select-module` before any git work, so a bad choice pulls and runs nothing.
+In collection mode it forwards `--module` to each child run.
+
+### Build/run forms (inside a module, or at the top level)
+
+`build`/`run` can each be:
+1. a single dict → **one** configuration. Its reserved keys `stdin` and
+   `args` are not flags; every other key is a flag.
+2. a single flat list of scalars → **one** configuration, positional args.
+   Cannot carry stdin.
 3. a list where every item is itself a dict or list → **N independent
-   configurations**, run one after another, each reported separately.
-   A failure in one never stops the rest.
+   configurations**, run one after another, each reported separately. A
+   failure in one never stops the rest.
 
-`yaml_helper.py`'s `normalize_configs()` is where forms (1)/(2)/(3) all
-get collapsed into "a list of configs" (length 1 for forms 1/2, length
-N for form 3). Disambiguating (2) from (3) — both are YAML lists — is
-done by checking whether *every* item is a dict/list (→ form 3) or *no*
-item is (→ form 2, the whole list is one config's positional args). A
-list mixing bare scalars with dicts/lists raises `ValueError` (surfaced
-as exit code 2) rather than guessing — don't try to make this "smarter"
-by e.g. treating scalar items as flags of their own; the ambiguity is
-real and the user needs to disambiguate by wrapping (see example
-config's `[--lint-only]`, `[input.txt]`).
+Per configuration, `yaml_helper.py`'s `parse_config()` returns
+`(argv_tokens, stdin_lines)`:
+- flags first (`-k v` / `--key v`), then the `args` list, so
+  `{mode: quick, args: [x]}` → `--mode quick x`;
+- `stdin` is a string (one line) or a list (one line per value);
+  `_plain_values()` rejects mappings and nested lists;
+- booleans render as lowercase `true`/`false` (`_to_text`). This was
+  `True`/`False` before, which contradicted the documented behavior.
+
+`normalize_configs()` collapses forms 1/2/3 into a list of raw configs.
+Disambiguating (2) from (3) (both YAML lists) is by "every item is dict/list"
+(→ form 3) vs "no item is" (→ form 2). A mix raises `ValueError`. Don't make
+this smarter by guessing: wrap the values in their own list, as the examples do.
 
 ## Contract between the two files (don't break this silently)
 
-`yaml_helper.py <config> folder` — unchanged: exit 0, folder path (or
-`.`) on stdout.
+`yaml_helper.py <config> select-module [--module NAME]` → exit 0, the chosen
+module name on stdout (empty for a single configuration). Exit 2 if no module
+can be chosen.
 
-`yaml_helper.py <config> <build|run> --count` — prints the number of
-independent configurations in that section (0 if present-but-empty,
-e.g. `build: []`).
+`yaml_helper.py <config> folder [--module NAME]` → exit 0, folder path (or `.`)
+on stdout. The folder is the `folder` key, else the module name, else `.`.
 
-`yaml_helper.py <config> <build|run> --index N` (0-based) — prints that
-one configuration's args as NUL-separated (`\0`) tokens, terminated by
-a trailing `\0` if non-empty (empty output if the config has zero args).
+`yaml_helper.py <config> <build|run> [--module NAME] --count` → number of
+configurations (0 if present but empty, e.g. `build: []`).
 
-Exit codes, consumed by `run_assignments.sh` (in
-`run_all_configs_for_stage()`):
-- `0` — success (see per-flag output above).
-- `3` — the requested `build`/`run` section doesn't exist in the YAML
-  at all. NOT an error — that stage simply isn't configured, and the
-  bash side treats it as "skip, info log only." Note this is distinct
-  from the section existing but being empty (`build: []`), which is
+`yaml_helper.py <config> <build|run> --index N` (0-based) → that config's
+argv tokens, each followed by `\0` (empty output if none).
+
+`yaml_helper.py <config> <build|run> --stdin-index N` (0-based) → that
+config's stdin lines, each followed by `\0` (empty output if none).
+
+Every configuration is parsed and validated before any query is answered,
+so `--count` also fails on a malformed config. Bash never sees a half-valid
+section.
+
+Exit codes, consumed by `run_all_configs_for_stage()` and `run_single_project()`
+in `run_assignments.sh`:
+- `0` — success.
+- `3` — the `build`/`run` section doesn't exist. NOT an error: that stage is
+  skipped with an info line. Distinct from present-but-empty (`[]`), which is
   exit `0` with `--count` printing `0`.
-- `2` — real parse/read error (bad YAML, missing PyYAML, unreadable
-  file, invalid mixed-list shape, or `--index` out of range).
-- `1` — bad CLI usage (wrong arg count / unknown section name / missing
-  `--count`/`--index` when querying build/run / non-integer `--index`).
+- `2` — real parse/read error (bad YAML, missing PyYAML, unreadable file,
+  invalid mixed-list shape, invalid `args`/`stdin` shape, invalid modules
+  (missing or duplicate names, mixed with top-level keys), no module that can be
+  chosen, `--module` on a file without `modules`, or an out-of-range `--index` /
+  `--stdin-index`).
+- `1` — bad CLI usage (including an unknown option or `-m` with no value). In
+  the runner, a module that cannot be chosen also ends the single-project run
+  with status 1, after the error is logged and the status file is written.
 
-If you change these exit-code semantics, update the `rc` handling in
-`run_all_configs_for_stage()` in `run_assignments.sh` — there is now
-exactly ONE such block, shared by both `build` and `run` (unlike the
-old single-config version, this one IS deduplicated into a shared
-function since the same per-config loop logic applies to both stages).
+If you change these semantics, update the `rc` handling in
+`run_all_configs_for_stage()`. There is exactly one such block, shared by
+both stages.
 
-### Why two-step `--count`/`--index` (not one big dump)
+### Why per-config `--index` / `--stdin-index` (not one big dump)
 
-An earlier version of this tool had `yaml_helper.py` dump ALL of a
-section's args in one call, NUL-joined, read into a bash array via
-`readarray -d '' arr < file`. That still works fine for a *single*
-config. It does NOT extend cleanly to *multiple* configs: bash strings/
-array elements are C-strings under the hood and cannot contain embedded
-NUL bytes, so there's no way to hold "N configs, each NUL-joined
-internally" as one delimited blob and split it into per-config strings
-in bash — the moment you try to store one "record" (one config's worth
-of NUL-joined args) in a bash variable, if you'd used NUL as also the
-between-configs separator, everything after the first internal NUL is
-lost when it round-trips through a variable/command-substitution.
+Bash strings can't contain NUL bytes. Packing N configs' NUL-joined args into
+one blob and splitting it in bash can't work, because the NUL that separates
+configs is the same byte used inside a config. So the runner asks for one
+config at a time and reads each reply straight from a temp file with
+`readarray -d ''`. Stdin is handled the same way: `--stdin-index` output is
+written to a temp file, never held in a bash variable, so blank lines and
+embedded newlines survive. Don't "optimize" these into a single call.
 
-The fix is to never let bash hold more than one config's args in a
-single variable: `run_all_configs_for_stage()` calls the helper once
-per config index, reading each config's NUL-joined output straight from
-a temp file into a bash array with `readarray -d ''` (same safe pattern
-as before, just looped). Don't "optimize" this into one call that
-returns everything — it would reintroduce the embedded-NUL problem the
-moment any config has more than a trivial number of args, and the
-per-config `uv run`/`python3` startup overhead is not worth chasing
-without profiling data showing it matters.
+## How stdin reaches the script
+
+In `run_stage()`, the `stdin_file` argument (6th positional) is either empty
+or a file with one line per stdin value.
+- Non-empty file: the script runs with `< $stdin_file`, the lines are logged
+  as `⏎ <line>` under an info line, and the count is shown.
+- Empty or absent: the script runs with `< /dev/null`. A script that prompts
+  without a configured answer gets EOF instead of blocking the run. This is
+  deliberate: the old behavior inherited the terminal's stdin, which could hang
+  a scheduled or unattended run. Don't remove it.
+
+`run_all_configs_for_stage()` builds the file with `printf '%s\n' "${items[@]}"`,
+guarded by a length check. An unguarded `printf '%s\n'` with zero arguments
+prints one newline, which would silently give every script one blank line of
+input.
 
 ## Key design decisions (and why)
 
-- **Build failure does not block run, and one bad config does not block
-  the rest of that stage's configs.** Two independent levels of
-  "keep going on failure": `run_single_project()` always runs the full
-  `build` stage AND the full `run` stage regardless of how the other
-  went (via two unconditional calls to `run_all_configs_for_stage()`);
-  and *within* `run_all_configs_for_stage()`'s `for` loop over config
-  indices, `run_stage()`'s non-zero return is only used to decide
-  whether to increment `STAGE_PASSED` — it never breaks/returns out of
-  the loop. If you change either of these, update the README's
-  "Notes / limitations" section too.
-- **Failed stage output → BOLD + UPPERCASE + red.** Done by piping the
-  captured stdout/stderr through `tr '[:lower:]' '[:upper:]'` and
-  wrapping in `${BOLD}${RED}...${NC}`. This happens only on non-zero
-  exit from the stage script, never on the info/success/warn log lines
-  themselves.
-- **Screen output vs. file output diverge only in color codes.** `log()`
-  echoes the colored string to the terminal and a color-stripped copy
-  (via a `sed -E 's/\x1b\[[0-9;]*m//g'` filter) to `assignment_output.txt`.
-  There is deliberately no separate "plain" and "colored" message
-  authored per call site — one message, one strip filter — to avoid the
-  two drifting out of sync.
-- **`.assignment_status.env` is the parent/child handoff mechanism.**
-  Single-project mode always writes this file (even on early-return
-  paths like "no config found") with `PROJECT_NAME`, `HAD_CONFIG`,
-  `HAD_BUILD`, `BUILD_TOTAL`, `BUILD_PASSED`, `HAD_RUN`, `RUN_TOTAL`,
-  `RUN_PASSED` as shell-sourceable `KEY=VALUE` lines — `*_TOTAL`/
-  `*_PASSED` replaced the old single `BUILD_OK`/`RUN_OK` booleans so the
-  parent can report "2/3 configs passed" instead of a single pass/fail
-  bit. "Stage OK" is now derived (`PASSED == TOTAL`), not stored
-  directly — computed both in `run_all_configs_for_stage()`'s own log
-  summary line and again in `run_parent()`'s aggregation block; these
-  two computations must stay consistent if you touch either. Parent
-  mode `source`s the file in a subshell after each child invocation,
-  builds one line of `assignments_results.txt`, then deletes it. If you
-  add/rename status fields, update `write_status_file()`, the
-  `source`-and-build-line block in `run_parent()`, AND the format
-  described in the README.
-- **git pull only on `main`/`master`, and only ever a warning on
-  failure.** Never make a failed `git pull` (e.g. "no upstream
-  configured", detached HEAD, merge conflict) abort the whole run — the
-  user explicitly wants build/run to still be attempted.
-- **`uv run` fallback logic must stay resilient offline.** In sandboxes
-  or CI without network/PyPI access, `uv run` will hard-fail trying to
-  resolve `pyyaml` (403/no solution errors) rather than silently falling
-  back to system python. This is expected uv behavior, not a bug in this
-  script — don't try to "fix" it by adding a try-uv-then-fallback-to-python3
-  retry inside the script; that would mask real dependency problems in
-  the normal (networked) case. The PATH-based choice (uv present at
-  script start → committed to uv for the whole run) is intentional.
+- **Build failure does not block run, and one bad config does not block the rest
+  of its stage.** `run_single_project()` always runs both stages. Inside
+  `run_all_configs_for_stage()`, `run_stage()`'s non-zero return only affects
+  `STAGE_PASSED`; it never breaks the loop. If you change either, update the
+  README's "Notes / limitations".
+- **A malformed section is reported and skipped; the other section still runs.**
+  The count call fails with exit 2, the stage logs an error and returns, and
+  `run_single_project()` continues.
+- **Failed stage output → BOLD + UPPERCASE + red.** Output is piped through
+  `tr '[:lower:]' '[:upper:]'`. This happens only on a non-zero exit, never on
+  the info/success/warn lines. Tests and any future expectations must match the
+  uppercase text.
+- **Screen output and file output differ only in color codes.** `log()` echoes
+  the colored string and writes a color-stripped copy (via
+  `sed -E 's/\x1b\[[0-9;]*m//g'`) to `assignment_output.txt`. Don't author
+  separate plain and colored messages per call site.
+- **`.assignment_status.env` is the parent/child handoff.** Single-project
+  mode always writes it, even on early returns. Parent mode sources it in a
+  subshell, builds one line of `assignments_results.txt`, and deletes it. If you
+  add or rename fields, update `write_status_file()`, the `source` block in
+  `run_parent()`, and the README.
+- **git pull only on `main`/`master`, and only ever a warning on failure.**
+  A failed pull must never abort the run.
+- **uv fallback stays resilient offline.** With uv on PATH, the runner commits
+  to `uv run` for the whole run. Offline it fails with a resolution error, which
+  is expected and is not masked: don't add a try-uv-then-python3 retry inside the
+  runner. The test harness handles this case itself (see "Testing").
 
-## Testing this locally
+## Per-project time limit (collection mode)
 
-There's no test suite checked in (this is a small utility, not a
-library). When making changes, smoke-test manually with throwaway git
-repos, e.g.:
+`-t`/`--timeout` sets `TIMEOUT_MINUTES` (default 10, whole minutes, > 0). It is
+enforced only by the parent in `run_parent()`, through `run_child_with_timeout()`.
+The child pass is not given `-t`, so the time limit is never checked twice.
 
-```bash
-mkdir -p /tmp/demo/projA/src && cd /tmp/demo/projA
-git init -q -b main
-git -c user.email=a@a.com -c user.name=a commit -q --allow-empty -m init
-printf '#!/usr/bin/env bash\necho ok\n' > src/build.sh
-printf '#!/usr/bin/env bash\necho ok\n' > src/run.sh
-chmod +x src/build.sh src/run.sh
-cp /path/to/assignment_config.yaml .
-/path/to/run_assignments.sh
-cat assignment_output.txt
-cat .assignment_status.env
-```
+- The child pass and its watchdog each run as their own process group (`set -m`
+  around the background jobs), so on timeout `kill -- -PGID` stops the scripts
+  the child started too. The watchdog creates a marker file before it kills, and
+  that marker, not the exit status, is how a timeout is detected (the status is
+  128+ on a signal and can't be told apart from a script's own failure).
+- A timeout is returned as `124`. The parent records `TIMED OUT` in
+  `assignments_results.txt` and does not read a status file for that project.
+- `RUNNER_TIMEOUT_SECONDS` overrides the limit in seconds. It is a test hook, so
+  the suite can check timeouts in about two seconds. Don't document it as a user
+  setting.
+- In single-project mode `-t` is accepted and ignored, with a warning.
 
-Cover at minimum: build success, build failure (non-zero exit + stderr),
-missing config file, non-main branch (verify git pull is skipped),
-parent/collection mode with a mix of the above across 2-3 subfolders
-(verify `assignments_results.txt` lines match each subfolder's actual
-outcome) — AND, for the multi-config feature specifically: a `build` or
-`run` list with 3+ configs where a *middle* one fails, verifying (a) the
-configs before and after it still execute, (b) `[i/N]` labels and the
-per-stage summary line are correct, and (c) `BUILD_TOTAL`/`BUILD_PASSED`
-in `.assignment_status.env` (and the `assignments_results.txt` line)
-reflect the actual pass count, not just 0/1.
+## Testing
+
+`tests/run_tests.sh` is the test suite. Run it from anywhere. It needs bash
+4.4+ (checked at startup), `git`, and python3. PyYAML is needed for the python3
+path; uv is optional.
+
+- Each test builds throwaway git projects under `mktemp -d`, runs the runner,
+  and asserts on `assignment_output.txt`, `.assignment_status.env`,
+  `assignments_results.txt`, and `calls.log`. Fixture scripts append to
+  `calls.log` as `$0 $*`, so each test can check exactly which executions ran,
+  and in what order.
+- Use `write_file` / `write_script` for fixtures. They read content from stdin,
+  so heredocs keep the closing marker at column 0.
+- `run_runner` passes `< /dev/null` and calls `run_limited 120`, so a regression
+  that reintroduces a blocking prompt fails the test instead of hanging.
+  `run_limited` uses `timeout` or `gtimeout` if present. Otherwise it uses a
+  small watchdog, because macOS has neither by default. Never call `timeout`
+  directly in the harness: on macOS that produced exit 127 and nearly every
+  test failed. `RUNNER_TESTS_FORCE_WATCHDOG=1` forces the watchdog path for
+  testing.
+- Helper checks call `"${HELPER_PY[@]}"`, which is the same interpreter the
+  runner uses (`uv run ...` or `python3`). Calling bare `python3` there breaks
+  when uv is the only interpreter with PyYAML.
+- `uv_can_provide_pyyaml` decides whether the uv path can run. If uv is present
+  but can't supply PyYAML, the suite prints a `SKIP` line and runs only the
+  python3 path. It must say the uv path is untested. Don't turn that into a
+  silent pass.
+- When uv is usable, the suite runs twice: once with uv, once with uv removed
+  hidden. `make_path_without_uv` builds the child's PATH: directories without
+  uv are kept exactly as they are, and a directory that contains uv is replaced
+  by a directory of symlinks to its other executables. Two things must hold:
+  (1) don't symlink a venv's python3 into another directory, because Python
+  finds `pyvenv.cfg` from the directory of the executable it was started through,
+  and the venv (with PyYAML) is lost; (2) don't remove a directory that holds uv
+  as a whole, because a directory shared by uv and bash or python3 (for example,
+  `/opt/homebrew/bin`) would then hide those tools too, and on macOS the runner
+  would be started by `/bin/bash` 3.2. The runner is always started with
+  `$RUNNER_BASH`, resolved before PATH changes.
+- Last verified: all 136 checks passed on the python3 path, including the module
+  tests. The uv path has not been exercised in this sandbox (no PyPI access);
+  verify it on a networked machine before relying on it.
+
+When you add a configuration form or a stage behavior, add a test for it in the
+same change. Include a negative test (a rejected shape) if the change adds
+validation.
 
 ## Things NOT to do
 
 - Don't add `set -e` to `run_assignments.sh`. Failures (build.sh exiting
-  non-zero, git pull failing, missing config) are expected, handled
-  outcomes, not script bugs — `set -e` would abort the whole run on the
-  first one instead of recording it and continuing.
-- Don't parse YAML in bash (e.g. with `grep`/`awk` hacks) even for
-  "simple" cases — `yaml_helper.py` is the single source of truth for
-  config parsing and its dict-vs-list branching. Keep parsing logic
-  Python-side.
-- Don't rename `.assignment_status.env` or change its format without
-  grepping for both places that read/write it (`write_status_file`,
-  and the `source` block in `run_parent`).
-- Don't collapse `run_all_configs_for_stage()`'s per-config loop back
-  into a single "dump everything, split in bash" call — see "Why
-  two-step --count/--index" above; it's a correctness fix (embedded
-  NUL bytes can't survive in a bash variable), not stylistic.
-- Don't let a config-list validation error (mixed scalars/dicts) fail
-  silently or get treated as "0 configs" — it must surface as a loud
-  parse error (exit 2, `log_error`), since silently skipping could look
-  identical to "nothing configured" and hide a typo'd config from the
-  user.
+  non-zero, git pull failing, missing config) are expected outcomes, and
+  `set -e` would abort the run.
+- Don't parse YAML in bash (`grep`/`awk` hacks included). `yaml_helper.py` is
+  the single source of truth for config parsing.
+- Don't rename `.assignment_status.env` or change its format without grepping for
+  both the writer and the `source` block in `run_parent`.
+- Don't collapse the per-config `--index` / `--stdin-index` loop into one
+  "dump everything" call. See "Why per-config" above.
+- Don't let scripts inherit the runner's stdin. Give them the configured file or
+  `/dev/null`.
+- Don't let a config validation error fail silently or turn into "0 configs".
+  Nothing is run, the error is named, and the exit is 2.
+- Don't add a stdin-related feature that puts input into a bash variable or an
+  argv element. Secrets and blank lines both need the file route.
+- Don't use the `stdin` or `args` keys as flag names. They're reserved, and the
+  README says so.
+- Don't pick a module by matching the project folder name. Only `current` is the
+  default, and `-m` is the explicit choice. The README's module table and the
+  tests depend on this.

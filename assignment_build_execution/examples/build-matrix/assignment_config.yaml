@@ -1,0 +1,12 @@
+# Example: several build configurations, one of which fails on purpose.
+#
+# Each item runs build.sh once. The failing configuration is reported,
+# and the configurations after it still run.
+
+folder: src
+
+build:
+  - {target: debug, verbose: true}                 # ./build.sh --target debug --verbose true
+  - {target: release, O: 2}                        # ./build.sh --target release -O 2
+  - [--fail]                                       # ./build.sh --fail   (exits 3)
+  - {target: release-lint, args: [--lint-only]}    # ./build.sh --target release-lint --lint-only

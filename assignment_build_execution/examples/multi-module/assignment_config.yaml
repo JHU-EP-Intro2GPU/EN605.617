@@ -1,0 +1,18 @@
+# Two modules in one file. Select one with -m, e.g.:
+#   ../../run_assignments.sh -m alpha
+#   ../../run_assignments.sh -m beta
+# With no -m, the module named "current" is used. This example has no such
+# module, so -m is required.
+modules:
+  - name: alpha
+    build:
+      - [--fast]
+      - [--full]
+    run:
+      - args: [one]
+        stdin: [Ada]
+
+  - name: beta
+    folder: beta
+    run:
+      - mode: quick

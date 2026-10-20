@@ -2,67 +2,121 @@
 #
 # Configuration consumed by run_assignments.sh. Place this file at the
 # root of a git project (alongside .git). It tells the script where to
-# find build.sh / run.sh and what arguments to pass them.
+# find build.sh / run.sh, what arguments to pass them, and - for scripts
+# that ask for input - what to type on their standard input.
 #
-# folder:
-#   Path (relative to this file / the project root) to the directory
-#   that contains build.sh and/or run.sh.
+# The file has two shapes. This template uses the "modules" shape, which
+# lets one file describe several buildable/runnable parts of a project.
+# The single-configuration shape is shown at the bottom.
 #
-# build / run:
-#   Each is OPTIONAL and independent — omit either one if that stage
-#   doesn't apply. Each may be written as ANY of:
+# ---------------------------------------------------------------------------
+# modules:
+#   A list of module objects (or one module object). Each module holds the
+#   full configuration for one part of the project:
 #
-#     1) a single dictionary of flag: value pairs -> ONE execution
+#     name:    REQUIRED. The top-level folder this module is for. It also
+#              selects the module: run_assignments.sh -m NAME uses it.
+#     folder:  OPTIONAL. Where build.sh / run.sh live, relative to the
+#              project root. Defaults to the name.
+#     build:   OPTIONAL. See "build / run" below.
+#     run:     OPTIONAL. See "build / run" below.
+#
+#   Choosing a module:
+#     - run_assignments.sh -m NAME (or --module NAME) runs that module.
+#     - With no -m, the module named "current" is used. If there is none,
+#       the run stops and lists the modules you can choose.
+#     - A file with a single module object works the same way, as long as
+#       it is named "current" or -m names it.
+#
+#   Module names must be unique. Top-level folder/build/run keys cannot be
+#   mixed with a "modules" key in the same file.
+#
+# ---------------------------------------------------------------------------
+# build / run (inside a module, or at the top level of the single form):
+#   Each is OPTIONAL and independent. Omit either one if that stage
+#   doesn't apply. Each may be written as ANY of these forms:
+#
+#     1) a single dictionary -> ONE execution
 #          build:
 #            target: release
 #            O: 2
-#        -> a 1-character key becomes "-k value", a longer key becomes
-#           "--key value": ./build.sh --target release -O 2
+#        -> ./build.sh --target release -O 2
+#        A 1-character key becomes "-k value", a longer key "--key value".
+#        true/false values are written lowercase.
 #
 #     2) a single flat list of positional values -> ONE execution
 #          run:
 #            - input.txt
 #            - 42
-#        -> passed straight through, in order: ./run.sh input.txt 42
+#        -> ./run.sh input.txt 42
+#        (A flat list cannot carry stdin. Use form 1 or 3 for that.)
 #
 #     3) a list where every item is itself a dict or a list
-#        -> MULTIPLE independent executions, one per item, run one
-#           after another. If one configuration's script exits
-#           non-zero, the rest still run — each is independent and the
-#           failure is reported per-configuration, not fatal to the
-#           others.
+#        -> MULTIPLE independent executions, one per item, run one after
+#           another. If one configuration's script exits non-zero, the
+#           rest still run; each is reported separately.
 #
-#   Forms (2) and (3) both use YAML lists, so the rule that tells them
-#   apart is: a list of bare values (strings/numbers) is form (2), a
-#   list of dicts/lists is form (3). Don't mix bare values with
+#   Forms (2) and (3) both use YAML lists. A list of bare values is form
+#   (2); a list of dicts/lists is form (3). Don't mix bare values with
 #   dicts/lists in the same list.
 #
-# This example shows form (3) — multiple configurations — for both
-# "build" and "run".
+# Keys inside a dictionary configuration:
+#   stdin:  lines to type into the script, for scripts that prompt for
+#           input. A string (one line; may contain \n) or a list of
+#           values (one line each). Omit it and the script gets an empty
+#           input, so a prompt fails with end-of-file rather than hanging.
+#   args:   a list of positional values, appended after any flags. Use it
+#           to pass positional values and stdin in the same configuration.
+#   anything else: a flag, as described above.
+#   "stdin" and "args" are reserved, so a flag cannot use either name.
+#
+# ---------------------------------------------------------------------------
 
-folder: src
+modules:
+  # Module "current": the default, used when no -m is given. Its build.sh
+  # and run.sh live in src/, so folder says so.
+  - name: current
+    folder: src
+    build:
+      # config 1 (dict form) -> ./build.sh --target debug --verbose true
+      - target: debug
+        verbose: true
+      # config 2 (dict form) -> ./build.sh --target release -O 2
+      - target: release
+        O: 2
+      # config 3 (list form, wrapped so it's unambiguous as its own config)
+      # -> ./build.sh --lint-only
+      - [--lint-only]
 
-build:
-  # config 1 (dict form) -> ./build.sh --target debug --verbose true
-  - target: debug
-    verbose: true
-  # config 2 (dict form) -> ./build.sh --target release -O 2
-  - target: release
-    O: 2
-  # config 3 (list form, wrapped so it's unambiguous as its own config)
-  # -> ./build.sh --lint-only
-  - [--lint-only]
+    run:
+      # config 1 (list form) -> ./run.sh input.txt
+      - [input.txt]
+      # config 2 (dict form) -> ./run.sh --mode quick
+      - mode: quick
+      # config 3 (dict form) -> ./run.sh --mode thorough --retries 3
+      - mode: thorough
+        retries: 3
+      # config 4 (interactive) -> ./run.sh input.txt
+      # run.sh reads a name and a color from stdin, so give it those two lines.
+      - args: [input.txt]
+        stdin:
+          - Ada
+          - blue
 
-run:
-  # config 1 (list form) -> ./run.sh input.txt
-  - [input.txt]
-  # config 2 (dict form) -> ./run.sh --mode quick
-  - mode: quick
-  # config 3 (dict form) -> ./run.sh --mode thorough --retries 3
-  - mode: thorough
-    retries: 3
+  # A second module, for a separate folder of the same project. Run it with:
+  #   ./run_assignments.sh -m tools
+  # - name: tools
+  #   folder: lib/tools     # optional; defaults to "tools"
+  #   run:
+  #     - [--check]
 
-# --- Single-configuration equivalent (form 1 / form 2), for reference ---
+# ---------------------------------------------------------------------------
+# Single-configuration shape (no "modules" key). The keys sit at the top
+# level and are used as the one configuration for the project. Use this when
+# a project has just one part. Equivalent to one module whose name is the
+# project folder's name.
+#
+# folder: src
 # build:
 #   target: release
 #   O: 2
@@ -70,3 +124,7 @@ run:
 #   - input.txt
 #   - "42"
 #   - --dry-run
+#
+# Single interactive configuration, form 1 (input only):
+# run:
+#   stdin: [Ada, blue]
